@@ -51,7 +51,8 @@ export default function GeofenceManagementPage({ navigation }) {
   };
 
   const handleEdit = (geofence) => {
-    navigation.navigate('EditGeofence', { id: geofence.id });
+    // FIX: Route is 'CreateGeofence', pass geofenceId via route params
+    navigation.navigate('CreateGeofence', { geofenceId: geofence.id });
   };
 
   const handleDelete = (geofence) => {

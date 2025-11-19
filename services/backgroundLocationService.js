@@ -3,6 +3,7 @@ import * as TaskManager from 'expo-task-manager';
 // import * as Notifications from 'expo-notifications'; // REMOVED: Notification support temporarily disabled
 import { pushLocationUpdate, endSharingSession } from './firebaseService';
 import { getSharingSession, saveSharingSession, clearSharingSession } from '../utils/journeySharing/storage';
+import { queueLocationUpdate } from '../utils/offlineQueue';
 
 const LOCATION_TASK_NAME = 'JOURNEY_SHARING_BACKGROUND_LOCATION';
 
@@ -25,6 +26,12 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
         return;
       }
 
+      // FIX C13: Validate location accuracy before processing
+      if (location.coords.accuracy > 100) {
+        console.warn('Location accuracy too poor:', location.coords.accuracy, 'meters - skipping update');
+        return;
+      }
+
       // Get the current sharing session
       const session = await getSharingSession();
       if (!session || !session.active) {
@@ -44,18 +51,30 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
       const locationData = {
         latitude: location.coords.latitude,
         longitude: location.coords.longitude,
-        timestamp: location.timestamp || Date.now()
+        timestamp: location.timestamp || Date.now(),
+        accuracy: location.coords.accuracy
       };
 
-      // Push to Firebase
-      await pushLocationUpdate(
-        session.shareCode,
-        locationData,
-        session.password,
-        session.updateInterval
-      );
-
-      console.log('Background location update pushed successfully');
+      // FIX C12, H4: Push to Firebase with offline queue fallback
+      try {
+        await pushLocationUpdate(
+          session.shareCode,
+          locationData,
+          session.password,
+          session.updateInterval
+        );
+        console.log('Background location update pushed successfully');
+      } catch (pushError) {
+        console.error('Failed to push location update:', pushError);
+        // FIX C12: Queue for offline retry
+        await queueLocationUpdate(
+          session.shareCode,
+          locationData,
+          session.password,
+          session.updateInterval
+        );
+        console.log('Location update queued for retry');
+      }
 
       // Update session last update time
       session.lastUpdateTime = Date.now();
@@ -115,11 +134,11 @@ export async function startBackgroundLocationTracking(config) {
       config.updateInterval
     );
 
-    // Start background location updates
+    // FIX H5, M28: Start background location updates with optimized settings
     await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
-      accuracy: Location.Accuracy.High,
+      accuracy: Location.Accuracy.Balanced, // FIX H5: Changed from High to reduce battery drain
       timeInterval: config.updateInterval * 1000, // Convert seconds to milliseconds
-      distanceInterval: 0, // Update based on time, not distance
+      distanceInterval: 10, // FIX H5: Add 10m threshold to reduce excessive updates
       deferredUpdatesInterval: config.updateInterval * 1000,
       foregroundService: {
         notificationTitle: 'YOURS - Sharing Location',

@@ -184,18 +184,15 @@ const LocationHistoryPage = ({ navigation }) => {
       setLabels(labelsData);
 
       // Check tracking status
+      // FIX: Don't automatically restart tracking on load, just check if it's running
       if (settingsData.enabled) {
-        const { status } = await Location.getForegroundPermissionsAsync();
-        if (status === 'granted') {
-          // Ensure tracking is running
-          const isTracking = await isLocationHistoryTrackingActive();
-          if (!isTracking) {
-            // Restart tracking if it's supposed to be enabled but isn't running
-            await startLocationHistoryTracking();
-          }
+        const isTracking = await isLocationHistoryTrackingActive();
+        if (isTracking) {
           setTrackingStatus('active');
         } else {
-          setTrackingStatus('permission_denied');
+          // Tracking is supposed to be enabled but isn't running
+          // This can happen after app restart - set to inactive and let user toggle
+          setTrackingStatus('inactive');
         }
       }
     } catch (error) {
@@ -548,16 +545,20 @@ const LocationHistoryPage = ({ navigation }) => {
           )}
         </View>
 
-        {/* Map View */}
-        {filteredHistory.length > 0 && (
+        {/* Map View - FIX: Show map even when no history, use current location */}
+        {(filteredHistory.length > 0 || currentLocation) && (
           <View style={styles.mapContainer}>
             <MapView
               ref={mapRef}
               style={styles.map}
               provider={PROVIDER_GOOGLE}
               initialRegion={{
-                latitude: filteredHistory[0].latitude,
-                longitude: filteredHistory[0].longitude,
+                latitude: filteredHistory.length > 0
+                  ? filteredHistory[0].latitude
+                  : currentLocation?.latitude || 37.78825,
+                longitude: filteredHistory.length > 0
+                  ? filteredHistory[0].longitude
+                  : currentLocation?.longitude || -122.4324,
                 latitudeDelta: 0.0922,
                 longitudeDelta: 0.0421,
               }}
@@ -608,7 +609,8 @@ const LocationHistoryPage = ({ navigation }) => {
           </View>
         )}
 
-        {filteredHistory.length === 0 && (
+        {/* FIX: Only show empty state if no map is displayed */}
+        {filteredHistory.length === 0 && !currentLocation && (
           <View style={styles.emptyState}>
             <MapPinIcon size={48} color="#D1D5DB" />
             <Text style={styles.emptyStateText}>

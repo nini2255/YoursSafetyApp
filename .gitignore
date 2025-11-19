@@ -47,3 +47,6 @@ yarn-error.*
 .env.example
 .env.example
 .expo/devices.json
+
+#   Builds
+*.apk

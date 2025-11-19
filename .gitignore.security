@@ -1,0 +1,50 @@
+# ⚠️ CRITICAL: Rename this file to .gitignore if it doesn't exist
+# or merge these entries into your existing .gitignore
+
+# Environment variables - NEVER commit these!
+.env
+.env.local
+.env.*.local
+.env.production
+
+# Sensitive configuration
+firebase-adminsdk-*.json
+google-services.json
+GoogleService-Info.plist
+
+# Security keys
+*.pem
+*.key
+*.p12
+*.mobileprovision
+
+# Build outputs that might contain secrets
+/build
+/dist
+*.apk
+*.aab
+*.ipa
+
+# Logs that might contain sensitive data
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# EAS Build
+.eas-build-pre-install.sh
+
+# Temporary files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Dependencies
+node_modules/
+
+# FIX C14: Ensure all sensitive files are ignored

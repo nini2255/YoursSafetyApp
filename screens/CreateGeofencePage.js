@@ -25,9 +25,14 @@ const RADIUS_OPTIONS = [
   { label: '1km', value: 1000 },
 ];
 
-export default function CreateGeofencePage({ onBack, geofenceId }) {
+// FIX: Accept navigation and route to get geofenceId from route params
+export default function CreateGeofencePage({ navigation, route }) {
+  const geofenceId = route?.params?.geofenceId;
   const { contacts } = useEmergencyContacts();
   const [loading, setLoading] = useState(false);
+
+  // FIX: Define onBack function using navigation
+  const onBack = () => navigation.goBack();
   const [name, setName] = useState('');
   const [location, setLocation] = useState(null);
   const [radius, setRadius] = useState(100);
@@ -66,12 +71,16 @@ export default function CreateGeofencePage({ onBack, geofenceId }) {
       }
 
       const currentLocation = await Location.getCurrentPositionAsync({});
-      setRegion({
-        latitude: currentLocation.coords.latitude,
-        longitude: currentLocation.coords.longitude,
-        latitudeDelta: 0.01,
-        longitudeDelta: 0.01,
-      });
+
+      // FIX: Only set region if not in edit mode (edit mode will set it from loaded geofence)
+      if (!isEditMode) {
+        setRegion({
+          latitude: currentLocation.coords.latitude,
+          longitude: currentLocation.coords.longitude,
+          latitudeDelta: 0.01,
+          longitudeDelta: 0.01,
+        });
+      }
     } catch (error) {
       console.error('Error getting location:', error);
     }
