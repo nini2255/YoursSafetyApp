@@ -48,89 +48,92 @@ export default function LoginScreen({ navigation }) {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.topShape}></View>
-      
-      {/* --- ADDED KeyboardAvoidingView Wrapper --- */}
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.container}
-          keyboardShouldPersistTaps="handled" // Good for dismissing keyboard on tap
+    <View style={{flex: 1, backgroundColor: '#FFF8F8'}}>
+      <View style={styles.topShape}>
+        <Image
+              source={require('../assets/logo_version1.png')} 
+              style={styles.illustration}
+              resizeMode="contain"
+        />
+      </View>
+      <SafeAreaView style={styles.safeArea}>
+        
+        {/* --- ADDED KeyboardAvoidingView Wrapper --- */}
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
-          <Image
-            source={require('../assets/logo_version1.png')} 
-            style={styles.illustration}
-            resizeMode="contain"
-          />
-          <Text style={styles.welcomeTitle}>Welcome back!</Text>
-          <Text style={styles.welcomeSubtitle}>Log in to your existing account of YoursApp</Text>
-
-          <View style={styles.inputGroup}>
-            <MailIcon style={styles.inputIcon} color="#9CA3AF" />
-            <TextInput
-              style={styles.input}
-              placeholder="Username"
-              placeholderTextColor="#9CA3AF"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-          </View>
-          <View style={styles.inputGroup}>
-            <LockIcon style={styles.inputIcon} color="#9CA3AF" />
-            <TextInput
-              style={styles.input}
-              placeholder="Password"
-              placeholderTextColor="#9CA3AF"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-            />
-          </View>
-
-          <TouchableOpacity style={styles.forgotPasswordButton} onPress={() => Alert.alert('Forgot Password', 'Feature to be implemented.')}>
-            <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity 
-            style={[styles.loginButton, isLoading && styles.buttonDisabled]} 
-            onPress={handleLogin}
-            disabled={isLoading}
+          <ScrollView
+            style={styles.scrollView}
+            contentContainerStyle={styles.container}
+            keyboardShouldPersistTaps="handled" // Good for dismissing keyboard on tap
           >
-            <Text style={styles.loginButtonText}>
-              {isLoading ? 'LOGGING IN...' : 'LOG IN'}
-            </Text>
-          </TouchableOpacity>
+            <Text style={styles.welcomeTitle}>Welcome back!</Text>
+            <Text style={styles.welcomeSubtitle}>Log in to your existing account of YoursApp</Text>
 
-          <Text style={styles.orConnectText}>Or connect using</Text>
+            <View style={styles.inputGroup}>
+              <MailIcon style={styles.inputIcon} color="#9CA3AF" />
+              <TextInput
+                style={styles.input}
+                placeholder="Username"
+                placeholderTextColor="#9CA3AF"
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+            </View>
+            <View style={styles.inputGroup}>
+              <LockIcon style={styles.inputIcon} color="#9CA3AF" />
+              <TextInput
+                style={styles.input}
+                placeholder="Password"
+                placeholderTextColor="#9CA3AF"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+              />
+            </View>
 
-          <View style={styles.socialButtonsContainer}>
-            <TouchableOpacity style={styles.socialButton}>
-              {/* <Image source={require('../assets/facebook-icon.png')} style={styles.socialIcon} /> */}
-              <Text style={styles.socialButtonText}>Facebook</Text>
+            <TouchableOpacity style={styles.forgotPasswordButton} onPress={() => Alert.alert('Forgot Password', 'Feature to be implemented.')}>
+              <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.socialButton, styles.googleButton]}>
-              {/* <Image source={require('../assets/google-icon.png')} style={styles.socialIcon} /> */}
-              <Text style={styles.socialButtonText}>Google</Text>
-            </TouchableOpacity>
-          </View>
 
-          <View style={styles.signupPrompt}>
-            <Text style={styles.signupPromptText}>Don't have an account? </Text>
-            <TouchableOpacity onPress={() => navigation.navigate('Signup')}>
-              <Text style={styles.signupLink}>Sign Up</Text>
+            <TouchableOpacity 
+              style={[styles.loginButton, isLoading && styles.buttonDisabled]} 
+              onPress={handleLogin}
+              disabled={isLoading}
+            >
+              <Text style={styles.loginButtonText}>
+                {isLoading ? 'LOGGING IN...' : 'LOG IN'}
+              </Text>
             </TouchableOpacity>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView> 
-      {/* --- END KeyboardAvoidingView Wrapper --- */}
 
-    </SafeAreaView>
+            <Text style={styles.orConnectText}>Or connect using</Text>
+
+            <View style={styles.socialButtonsContainer}>
+              <TouchableOpacity style={styles.socialButton}>
+                {/* <Image source={require('../assets/facebook-icon.png')} style={styles.socialIcon} /> */}
+                <Text style={styles.socialButtonText}>Facebook</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.socialButton, styles.googleButton]}>
+                {/* <Image source={require('../assets/google-icon.png')} style={styles.socialIcon} /> */}
+                <Text style={styles.socialButtonText}>Google</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.signupPrompt}>
+              <Text style={styles.signupPromptText}>Don't have an account? </Text>
+              <TouchableOpacity onPress={() => navigation.navigate('Signup')}>
+                <Text style={styles.signupLink}>Sign Up</Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+        </KeyboardAvoidingView> 
+        {/* --- END KeyboardAvoidingView Wrapper --- */}
+
+      </SafeAreaView>
+    </View>
   );
 }
 
@@ -141,7 +144,7 @@ const styles = StyleSheet.create({
   },
   // --- MODIFIED: Changed height from '35%' to a fixed 280 ---
   topShape: {
-    position: 'absolute',
+    position: 'relative',
     top: 0,
     left: 0,
     right: 0,
@@ -157,15 +160,17 @@ const styles = StyleSheet.create({
   container: {
     flexGrow: 1, // Ensures content can grow and be scrollable
     paddingHorizontal: 30,
-    paddingTop: 100, // Adjusted for new topShape height
+    paddingTop: Platform.OS === 'ios' ? '15%' : 100, // Adjusted for new topShape height
     paddingBottom: 40, // Added bottom padding for spacing
     alignItems: 'center',
   },
   // --- MODIFIED: Adjusted height for new layout ---
   illustration: {
     width: '90%',
+    marginTop: Platform.OS === 'ios' ? '20%' : 0,
     height: 220, // Adjusted height
     marginBottom: 20, 
+    alignSelf: 'center',
   },
   welcomeTitle: {
     fontSize: 26,
