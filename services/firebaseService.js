@@ -1,5 +1,5 @@
 import { database } from './firebase';
-import { ref, set, get, onValue, off, update } from 'firebase/database';
+import { ref, set, get, onValue, off, update, remove } from 'firebase/database';
 import { encryptLocation, decryptLocation } from '../utils/journeySharing/encryption';
 
 /**
@@ -228,13 +228,45 @@ export async function validateAuthentication(shareCode, password) {
  * @returns {Promise<void>}
  */
 export async function deleteLocationSession(shareCode) {
+  console.log('[DeleteSession] Deleting location session:', shareCode);
+  console.log('[DeleteSession] Firebase path:', `locations/${shareCode}`);
+
   try {
     const locationRef = ref(database, `locations/${shareCode}`);
-    await set(locationRef, null);
-    console.log('Location session deleted');
+
+    // Check if it exists before deletion
+    console.log('[DeleteSession] Checking if session exists...');
+    const beforeSnapshot = await get(locationRef);
+    console.log('[DeleteSession] Session exists before delete:', beforeSnapshot.exists());
+
+    if (beforeSnapshot.exists()) {
+      console.log('[DeleteSession] Session data before delete:', beforeSnapshot.val());
+    }
+
+    // Use remove() instead of set(null) for proper deletion
+    console.log('[DeleteSession] Calling remove()...');
+    await remove(locationRef);
+    console.log('[DeleteSession] ✅ remove() completed');
+
+    // Verify deletion
+    console.log('[DeleteSession] Verifying deletion...');
+    const afterSnapshot = await get(locationRef);
+    console.log('[DeleteSession] Session exists after delete:', afterSnapshot.exists());
+
+    if (afterSnapshot.exists()) {
+      console.error('[DeleteSession] ❌ ERROR: Session still exists after deletion!');
+      console.error('[DeleteSession] Remaining data:', afterSnapshot.val());
+      throw new Error('Session still exists after deletion attempt');
+    }
+
+    console.log('[DeleteSession] ✅ Location session deleted successfully');
   } catch (error) {
-    console.error('Error deleting location session:', error);
-    throw new Error('Failed to delete location session');
+    console.error('[DeleteSession] ❌ Error deleting location session:', error);
+    console.error('[DeleteSession] Error type:', error.constructor.name);
+    console.error('[DeleteSession] Error message:', error.message);
+    console.error('[DeleteSession] Error code:', error.code);
+    console.error('[DeleteSession] Full error:', error);
+    throw new Error(`Failed to delete location session: ${error.message}`);
   }
 }
 

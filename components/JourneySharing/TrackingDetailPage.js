@@ -16,13 +16,24 @@ import { decryptLocation } from '../../utils/journeySharing/encryption';
 import { getSession, moveToEndedSessions, deleteEndedSession, saveActiveSession } from '../../utils/journeySharing/storage';
 import { isSharerOffline, getTimeSinceUpdate } from '../../services/firebaseService';
 
-const TrackingDetailPage = ({ onBack, sessionId }) => {
+const TrackingDetailPage = ({ route, navigation }) => {
+  // Support both navigation prop pattern and direct prop pattern
+  const sessionId = route?.params?.sessionId;
+  const onBack = navigation ? () => navigation.goBack() : () => {};
+
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
   const [mapRegion, setMapRegion] = useState(null);
   const [selectedLocation, setSelectedLocation] = useState(null);
 
   useEffect(() => {
+    if (!sessionId) {
+      console.error('[TrackingDetail] No sessionId provided');
+      Alert.alert('Error', 'No session ID provided');
+      if (navigation) navigation.goBack();
+      return;
+    }
+    console.log('[TrackingDetail] Loading session:', sessionId);
     loadSession();
   }, [sessionId]);
 
@@ -133,31 +144,55 @@ const TrackingDetailPage = ({ onBack, sessionId }) => {
 
   const loadSession = async () => {
     try {
+      console.log('[TrackingDetail] Fetching session from storage:', sessionId);
       const sessionData = await getSession(sessionId);
+
       if (!sessionData) {
-        Alert.alert('Error', 'Session not found');
-        onBack();
+        console.error('[TrackingDetail] Session not found in storage');
+        Alert.alert(
+          'Session Not Found',
+          'This tracking session was not found. It may have been deleted or never created.',
+          [{ text: 'OK', onPress: onBack }]
+        );
         return;
       }
+
+      console.log('[TrackingDetail] Session loaded successfully:', {
+        id: sessionData.id,
+        displayName: sessionData.displayName,
+        isActive: sessionData.isActive,
+        hasLocationHistory: !!sessionData.locationHistory,
+        locationCount: sessionData.locationHistory?.length || 0
+      });
 
       setSession(sessionData);
 
       // Set initial map region
       if (sessionData.locationHistory && sessionData.locationHistory.length > 0) {
         const latestLocation = sessionData.locationHistory[sessionData.locationHistory.length - 1];
+        console.log('[TrackingDetail] Setting initial map region:', latestLocation);
         setMapRegion({
           latitude: latestLocation.latitude,
           longitude: latestLocation.longitude,
           latitudeDelta: 0.0922,
           longitudeDelta: 0.0421
         });
+      } else {
+        console.log('[TrackingDetail] No location history available yet');
       }
 
       setLoading(false);
     } catch (error) {
-      console.error('Error loading session:', error);
-      Alert.alert('Error', 'Failed to load session');
-      onBack();
+      console.error('[TrackingDetail] Error loading session:', error);
+      console.error('[TrackingDetail] Error details:', {
+        message: error.message,
+        stack: error.stack
+      });
+      Alert.alert(
+        'Error',
+        `Failed to load session: ${error.message || 'Unknown error'}`,
+        [{ text: 'OK', onPress: onBack }]
+      );
     }
   };
 

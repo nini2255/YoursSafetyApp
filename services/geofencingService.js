@@ -89,10 +89,20 @@ async function handleGeofenceEvent(geofenceId, eventType, region) {
       try {
         const activeJourney = JSON.parse(activeJourneyJson);
 
+        // Record to arrival/departure service
         await recordArrivalDepartureEvent(
           activeJourney.journeyId,
           geofenceId,
           geofence.name,
+          eventType,
+          currentLocation
+        );
+
+        // Also record to journey service
+        const { recordWaypointEvent } = require('./journeyService');
+        await recordWaypointEvent(
+          activeJourney.journeyId,
+          geofenceId,
           eventType,
           currentLocation
         );

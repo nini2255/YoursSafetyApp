@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -20,6 +20,8 @@ import {
 } from '../../utils/journeySharing/storage';
 
 const TrackAFriendPage = ({ onBack, onNavigate }) => {
+  // Store active listeners to clean them up
+  const activeListenersRef = useRef({});
   const [shareCode, setShareCode] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -30,6 +32,17 @@ const TrackAFriendPage = ({ onBack, onNavigate }) => {
 
   useEffect(() => {
     loadSessions();
+
+    // Cleanup all listeners on unmount
+    return () => {
+      console.log('Cleaning up all Firebase listeners');
+      Object.values(activeListenersRef.current).forEach(unsubscribe => {
+        if (typeof unsubscribe === 'function') {
+          unsubscribe();
+        }
+      });
+      activeListenersRef.current = {};
+    };
   }, []);
 
   const loadSessions = async () => {
@@ -218,6 +231,12 @@ const TrackAFriendPage = ({ onBack, onNavigate }) => {
   };
 
   const setupRealtimeListener = (session) => {
+    // Clean up existing listener if any
+    if (activeListenersRef.current[session.id]) {
+      activeListenersRef.current[session.id]();
+      delete activeListenersRef.current[session.id];
+    }
+
     const unsubscribe = listenToLocation(
       session.shareCode,
       session.password,
@@ -230,12 +249,22 @@ const TrackAFriendPage = ({ onBack, onNavigate }) => {
         if (!data.exists) {
           // Session deleted or doesn't exist
           await handleSessionEnded(session.id);
+          // Clean up listener
+          if (activeListenersRef.current[session.id]) {
+            activeListenersRef.current[session.id]();
+            delete activeListenersRef.current[session.id];
+          }
           return;
         }
 
         if (!data.active) {
           // Session ended by sharer
           await handleSessionEnded(session.id);
+          // Clean up listener
+          if (activeListenersRef.current[session.id]) {
+            activeListenersRef.current[session.id]();
+            delete activeListenersRef.current[session.id];
+          }
           return;
         }
 
@@ -246,8 +275,9 @@ const TrackAFriendPage = ({ onBack, onNavigate }) => {
       }
     );
 
-    // Store unsubscribe function if needed
-    // In production, you'd want to manage these listeners properly
+    // Store unsubscribe function for cleanup
+    activeListenersRef.current[session.id] = unsubscribe;
+    console.log(`Real-time listener set up for session ${session.id}`);
   };
 
   const handleSessionEnded = async (sessionId) => {
@@ -274,6 +304,13 @@ const TrackAFriendPage = ({ onBack, onNavigate }) => {
           style: 'destructive',
           onPress: async () => {
             try {
+              // Clean up listener first
+              if (activeListenersRef.current[session.id]) {
+                activeListenersRef.current[session.id]();
+                delete activeListenersRef.current[session.id];
+                console.log(`Listener cleaned up for session ${session.id}`);
+              }
+
               await moveToEndedSessions(session.id);
               await loadSessions();
               Alert.alert('Success', `Stopped tracking ${session.displayName}`);
@@ -425,6 +462,7 @@ const TrackAFriendPage = ({ onBack, onNavigate }) => {
               value={shareCode}
               onChangeText={setShareCode}
               placeholder="Enter share code"
+              placeholderTextColor="#9CA3AF"
               autoCapitalize="none"
               autoCorrect={false}
             />
@@ -438,6 +476,7 @@ const TrackAFriendPage = ({ onBack, onNavigate }) => {
                 value={password}
                 onChangeText={setPassword}
                 placeholder="Enter password"
+                placeholderTextColor="#9CA3AF"
                 secureTextEntry={!showPassword}
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -563,7 +602,9 @@ const styles = {
     borderColor: '#D1D5DB',
     borderRadius: 8,
     padding: 12,
-    fontSize: 14
+    fontSize: 14,
+    color: '#000000',
+    backgroundColor: '#FFFFFF'
   },
   showHideText: {
     fontSize: 14,

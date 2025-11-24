@@ -19,9 +19,10 @@ export default {
       bundleIdentifier: "com.rafox2500.Yoursapp",
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
-        // These strings are required by Apple for location access
-        NSLocationWhenInUseUsageDescription: "This app needs access to your location to track your journeys and geofences.",
-        NSLocationAlwaysAndWhenInUseUsageDescription: "This app needs background location access to monitor geofences even when the app is closed."
+        // CRITICAL: Complete iOS location permission strings
+        NSLocationWhenInUseUsageDescription: "YOURS needs your location to share your journey and detect arrivals.",
+        NSLocationAlwaysAndWhenInUseUsageDescription: "YOURS needs your location in the background to track your journey when the app is closed.",
+        UIBackgroundModes: ["location"]
       }
     },
     android: {
@@ -31,11 +32,13 @@ export default {
       },
       edgeToEdgeEnabled: true,
       package: "com.rafox2500.Yoursapp",
-      // 👇 CRITICAL: This permissions section fixes your specific error
+      // 👇 CRITICAL: Complete permissions for foreground service location tracking (Android API 34+)
       permissions: [
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
-        "ACCESS_BACKGROUND_LOCATION"
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION"
       ],
       config: {
         googleMaps: {
@@ -46,12 +49,16 @@ export default {
     web: {
       favicon: "./assets/favicon.png"
     },
-    // 👇 Recommended: Explicitly configure the location plugin
+    // 👇 CRITICAL: Complete expo-location plugin configuration with foreground service enabled
     plugins: [
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "Allow Yours-app to use your location to track journeys and safety zones."
+          "locationAlwaysAndWhenInUsePermission": "YOURS needs your location to share your journey and detect arrivals.",
+          "locationAlwaysPermission": "YOURS needs your location in the background to track your journey when the app is closed.",
+          "locationWhenInUsePermission": "YOURS needs your location to share your journey.",
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
         }
       ]
     ],

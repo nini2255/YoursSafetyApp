@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { saveSecureData, getSecureData, deleteSecureData, migrateToSecureStore } from '../securePasswordStorage';
 
 const STORAGE_KEYS = {
   ACTIVE_SESSIONS: '@journey_sharing_active_sessions',

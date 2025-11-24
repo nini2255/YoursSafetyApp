@@ -26,8 +26,7 @@ import {
 import { getSharingConfig, saveSharingConfig } from '../../utils/journeySharing/storage';
 import { getActiveSessions } from '../../utils/journeySharing/storage';
 
-// *** MODIFIED: Added navigation prop ***
-const JourneySharingPageV2 = ({ navigation, onNavigate }) => {
+const JourneySharingPageV2 = ({ navigation }) => {
   // Share location state
   const [isSharingActive, setIsSharingActive] = useState(false);
   const [shareCode, setShareCode] = useState('');
@@ -378,7 +377,7 @@ const JourneySharingPageV2 = ({ navigation, onNavigate }) => {
               <View style={styles.trackActions}>
                 <TouchableOpacity
                   style={styles.trackButton}
-                  onPress={() => onNavigate && onNavigate('TrackingDetail', { sessionId: track.id })} // Pass sessionId as param
+                  onPress={() => navigation.navigate('TrackingDetail', { sessionId: track.id })}
                 >
                   <Text style={styles.trackButtonText}>View</Text>
                 </TouchableOpacity>
@@ -387,7 +386,7 @@ const JourneySharingPageV2 = ({ navigation, onNavigate }) => {
           ))}
           <TouchableOpacity
             style={styles.trackAFriendButton}
-            onPress={() => onNavigate && onNavigate('TrackAFriend')}
+            onPress={() => navigation.navigate('TrackAFriend')}
           >
             <Text style={styles.trackAFriendButtonText}>Track Another Friend →</Text>
           </TouchableOpacity>
@@ -395,7 +394,7 @@ const JourneySharingPageV2 = ({ navigation, onNavigate }) => {
       ) : (
         <TouchableOpacity
           style={styles.trackAFriendButtonLarge}
-          onPress={() => onNavigate && onNavigate('TrackAFriend')}
+          onPress={() => navigation.navigate('TrackAFriend')}
         >
           <Text style={styles.trackAFriendIcon}>📍</Text>
           <Text style={styles.trackAFriendButtonText}>Track Someone's Location</Text>
@@ -727,7 +726,9 @@ const styles = {
     borderRadius: 8,
     padding: 12,
     fontSize: 14,
-    flex: 1
+    flex: 1,
+    color: '#000000',
+    backgroundColor: '#FFFFFF'
   },
   helperText: {
     fontSize: 12,

@@ -110,10 +110,11 @@ function AppContent() {
   });
 
   // --- MOVED BLOCK ---
-  // --- Initialize geofencing and push notifications ---
+  // --- Initialize geofencing, push notifications, and resume active journey ---
   useEffect(() => {
-    const initializeGeofencing = async () => {
+    const initializeServices = async () => {
       try {
+        // Register push notifications
         const token = await registerForPushNotifications();
         if (token) {
           let userId = await AsyncStorage.getItem('userId');
@@ -123,15 +124,40 @@ function AppContent() {
           }
           await saveUserToken(userId, token);
         }
+
+        // Resume active journey if exists
+        const { resumeActiveJourney } = require('./services/journeyService');
+        const journeyResumed = await resumeActiveJourney();
+        if (journeyResumed) {
+          console.log('Active journey resumed on app restart');
+        }
+
+        // Initialize geofencing
         const activeGeofences = await getActiveGeofences();
         if (activeGeofences.length > 0) {
           await startGeofenceMonitoring(activeGeofences);
+          console.log(`Geofence monitoring started for ${activeGeofences.length} geofences`);
         }
+
+        // Setup notifications
+        const { setupLocationNotifications } = require('./services/backgroundLocationService');
+        await setupLocationNotifications();
+
+        // Setup offline queue listener
+        const { setupQueueListener } = require('./utils/offlineQueue');
+        const unsubscribeQueue = setupQueueListener();
+
+        // Store unsubscribe function for cleanup
+        return () => {
+          if (unsubscribeQueue) {
+            unsubscribeQueue();
+          }
+        };
       } catch (error) {
-        console.error('Error initializing geofencing:', error);
+        console.error('Error initializing services:', error);
       }
     };
-    initializeGeofencing();
+    initializeServices();
   }, []);
   // --- END OF MOVED BLOCK ---
 

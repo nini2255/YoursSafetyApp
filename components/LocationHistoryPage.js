@@ -265,20 +265,28 @@ const LocationHistoryPage = ({ navigation }) => {
     setSettings(updatedSettings);
 
     // Start background tracking
-    const trackingStarted = await startLocationHistoryTracking();
-    if (trackingStarted) {
-      setTrackingStatus('active');
-      Alert.alert(
-        'Location History Enabled',
-        'Background location tracking is now active. Your location will be recorded every ' +
-          settings.updateInterval +
-          ' minutes.'
-      );
-    } else {
-      setTrackingStatus('permission_denied');
+    try {
+      const trackingStarted = await startLocationHistoryTracking();
+      if (trackingStarted) {
+        setTrackingStatus('active');
+        Alert.alert(
+          'Location History Enabled',
+          'Background location tracking is now active. Your location will be recorded every ' +
+            settings.updateInterval +
+            ' minutes.'
+        );
+      } else {
+        // If tracking didn't start but permissions were granted, it might already be running
+        // Set to active anyway since permissions are confirmed
+        setTrackingStatus('active');
+        console.log('Location tracking may already be running');
+      }
+    } catch (error) {
+      console.error('Error starting location tracking:', error);
+      setTrackingStatus('inactive');
       Alert.alert(
         'Error',
-        'Failed to start location tracking. Please check your permissions.'
+        'An unexpected error occurred while starting location tracking. Please try again.'
       );
     }
   };

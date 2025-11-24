@@ -1,9 +1,10 @@
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
-// import * as Notifications from 'expo-notifications'; // REMOVED: Notification support temporarily disabled
-import { pushLocationUpdate, endSharingSession } from './firebaseService';
+import * as Notifications from 'expo-notifications';
+import { pushLocationUpdate, endSharingSession, deleteLocationSession } from './firebaseService';
 import { getSharingSession, saveSharingSession, clearSharingSession } from '../utils/journeySharing/storage';
 import { queueLocationUpdate } from '../utils/offlineQueue';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const LOCATION_TASK_NAME = 'JOURNEY_SHARING_BACKGROUND_LOCATION';
 
@@ -32,11 +33,31 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
         return;
       }
 
-      // Get the current sharing session
+      // Get the current sharing session or active journey
       const session = await getSharingSession();
-      if (!session || !session.active) {
-        console.log('No active sharing session, stopping background location');
+      const activeJourneyJson = await AsyncStorage.getItem('@active_journey');
+
+      if ((!session || !session.active) && !activeJourneyJson) {
+        console.log('No active sharing session or journey, stopping background location');
         await stopBackgroundLocationTracking();
+        return;
+      }
+
+      // If no sharing session but journey exists, just continue tracking
+      if (!session || !session.active) {
+        // Update journey location only
+        if (activeJourneyJson) {
+          const activeJourney = JSON.parse(activeJourneyJson);
+          // Import dynamically to avoid circular dependency
+          const { updateJourneyLocation } = require('./journeyService');
+          const locationData = {
+            latitude: location.coords.latitude,
+            longitude: location.coords.longitude,
+            timestamp: location.timestamp || Date.now(),
+            accuracy: location.coords.accuracy
+          };
+          await updateJourneyLocation(activeJourney.journeyId, locationData);
+        }
         return;
       }
 
@@ -164,24 +185,80 @@ export async function startBackgroundLocationTracking(config) {
  * @returns {Promise<void>}
  */
 export async function stopBackgroundLocationTracking(endSession = true) {
+  console.log('=== STOP BACKGROUND LOCATION TRACKING CALLED ===');
+  console.log('[StopTracking] Parameters:', { endSession });
+
   try {
+    // Stop location updates
+    console.log('[StopTracking] Checking if location task is registered...');
     const isRegistered = await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME);
+    console.log('[StopTracking] Task registered:', isRegistered);
+
     if (isRegistered) {
+      console.log('[StopTracking] Stopping location updates...');
       await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME);
-      console.log('Background location tracking stopped');
+      console.log('[StopTracking] ✅ Location updates stopped');
+    } else {
+      console.log('[StopTracking] No task to stop');
     }
 
+    // Delete Firebase session if requested
     if (endSession) {
+      console.log('[StopTracking] End session requested - fetching session data...');
       const session = await getSharingSession();
+      console.log('[StopTracking] Session data:', session ? {
+        shareCode: session.shareCode,
+        startTime: session.startTime,
+        active: session.active
+      } : 'null');
+
       if (session && session.shareCode) {
-        await endSharingSession(session.shareCode);
+        console.log('[StopTracking] Deleting Firebase location session for code:', session.shareCode);
+        try {
+          await deleteLocationSession(session.shareCode);
+          console.log('[StopTracking] ✅ Share code freed successfully:', session.shareCode);
+
+          // Verify deletion
+          console.log('[StopTracking] Verifying deletion from Firebase...');
+          const { ref, get } = require('firebase/database');
+          const { database } = require('./firebase');
+          const locationRef = ref(database, `locations/${session.shareCode}`);
+          const verifySnapshot = await get(locationRef);
+          console.log('[StopTracking] Verification - code still exists:', verifySnapshot.exists());
+          if (verifySnapshot.exists()) {
+            console.warn('[StopTracking] ⚠️ WARNING: Code still exists after deletion!');
+            console.warn('[StopTracking] Remaining data:', verifySnapshot.val());
+          }
+        } catch (deleteError) {
+          console.error('[StopTracking] ❌ Error deleting location session:', deleteError);
+          console.error('[StopTracking] Error details:', {
+            message: deleteError.message,
+            code: deleteError.code,
+            stack: deleteError.stack
+          });
+          // Don't throw - continue with cleanup even if delete fails
+        }
+      } else {
+        console.log('[StopTracking] No session or shareCode to delete');
       }
+    } else {
+      console.log('[StopTracking] endSession=false, skipping Firebase cleanup');
     }
 
+    // Clear local storage
+    console.log('[StopTracking] Clearing local session storage...');
     await clearSharingSession();
+    console.log('[StopTracking] ✅ Local session cleared');
+
+    console.log('=== STOP TRACKING COMPLETED SUCCESSFULLY ===');
 
   } catch (error) {
-    console.error('Error stopping background location tracking:', error);
+    console.error('=== STOP TRACKING ERROR ===');
+    console.error('[StopTracking] Error type:', error.constructor.name);
+    console.error('[StopTracking] Error message:', error.message);
+    console.error('[StopTracking] Error code:', error.code);
+    console.error('[StopTracking] Full error:', error);
+    console.error('[StopTracking] Stack:', error.stack);
     throw error;
   }
 }
@@ -199,9 +276,8 @@ async function handleAutoStop(session) {
     // Stop background tracking
     await stopBackgroundLocationTracking(false);
 
-    // TODO: Notification feature - implement later when notifications are working
-    // await sendAutoStopNotification();
-    console.log('Auto-stop notification would appear here');
+    // Send notification
+    await sendAutoStopNotification();
 
     console.log('Auto-stop completed');
   } catch (error) {
@@ -211,29 +287,31 @@ async function handleAutoStop(session) {
 
 /**
  * Sends a notification when auto-stop occurs
- * TEMPORARILY DISABLED - Notification support will be re-enabled later
  * @returns {Promise<void>}
  */
-// async function sendAutoStopNotification() {
-//   try {
-//     const { status } = await Notifications.getPermissionsAsync();
-//     if (status !== 'granted') {
-//       return;
-//     }
+async function sendAutoStopNotification() {
+  try {
+    const { status } = await Notifications.getPermissionsAsync();
+    if (status !== 'granted') {
+      console.log('Notification permission not granted, skipping notification');
+      return;
+    }
 
-//     await Notifications.scheduleNotificationAsync({
-//       content: {
-//         title: 'Location sharing has ended',
-//         body: 'Your session has expired',
-//         sound: true,
-//         priority: Notifications.AndroidNotificationPriority.HIGH
-//       },
-//       trigger: null // Send immediately
-//     });
-//   } catch (error) {
-//     console.error('Error sending auto-stop notification:', error);
-//   }
-// }
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: 'Location sharing has ended',
+        body: 'Your session has expired',
+        sound: true,
+        priority: Notifications.AndroidNotificationPriority.HIGH
+      },
+      trigger: null // Send immediately
+    });
+    console.log('Auto-stop notification sent');
+  } catch (error) {
+    console.error('Error sending auto-stop notification:', error);
+    // Don't throw - notification failure shouldn't break the flow
+  }
+}
 
 /**
  * Checks if background location tracking is currently running
@@ -305,36 +383,37 @@ export async function extendSharingSession(additionalMinutes) {
 }
 
 /**
- * Sets up location update notifications (Android foreground service notification)
- * TEMPORARILY DISABLED - Notification support will be re-enabled later
+ * Sets up location update notifications
  * Foreground service notification is automatically handled by expo-location's foregroundService option
+ * This sets up the notification handler for other notifications
  */
 export async function setupLocationNotifications() {
-  // TODO: Re-enable notification setup when Expo Go notification issues are resolved
-  // For now, foreground service notification (Android) is handled by expo-location
-  console.log('Notification setup skipped - using expo-location foreground service only');
+  try {
+    await Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: false,
+      }),
+    });
 
-  // try {
-  //   await Notifications.setNotificationHandler({
-  //     handleNotification: async () => ({
-  //       shouldShowAlert: true,
-  //       shouldPlaySound: false,
-  //       shouldSetBadge: false,
-  //     }),
-  //   });
+    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    let finalStatus = existingStatus;
 
-  //   const { status: existingStatus } = await Notifications.getPermissionsAsync();
-  //   let finalStatus = existingStatus;
+    if (existingStatus !== 'granted') {
+      const { status } = await Notifications.requestPermissionsAsync();
+      finalStatus = status;
+    }
 
-  //   if (existingStatus !== 'granted') {
-  //     const { status } = await Notifications.requestPermissionsAsync();
-  //     finalStatus = status;
-  //   }
+    if (finalStatus !== 'granted') {
+      console.warn('Notification permission not granted');
+      return false;
+    }
 
-  //   if (finalStatus !== 'granted') {
-  //     console.warn('Notification permission not granted');
-  //   }
-  // } catch (error) {
-  //   console.error('Error setting up location notifications:', error);
-  // }
+    console.log('Notification setup completed successfully');
+    return true;
+  } catch (error) {
+    console.error('Error setting up location notifications:', error);
+    return false;
+  }
 }

@@ -184,24 +184,60 @@ export async function getQueueStats() {
 
 /**
  * FIX H10: Sets up network listener to automatically process queue when connection restored
+ * Also syncs unsynced journey events
  * @returns {Function} Unsubscribe function
  */
 export function setupQueueListener() {
   console.log('Setting up offline queue network listener');
 
-  const unsubscribe = NetInfo.addEventListener(state => {
+  const unsubscribe = NetInfo.addEventListener(async state => {
     console.log('Network state changed:', state.isConnected ? 'connected' : 'disconnected');
 
     if (state.isConnected) {
-      console.log('Network connected, processing offline queue');
-      processQueue();
+      console.log('Network connected, processing offline queue and syncing events');
+
+      // Process offline location queue
+      await processQueue();
+
+      // Sync unsynced journey events
+      try {
+        const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+        const { syncUnsyncedEvents } = require('../services/arrivalDepartureService');
+        const { getActiveJourney } = require('../services/journeyService');
+
+        const journey = await getActiveJourney();
+        if (journey) {
+          const syncedCount = await syncUnsyncedEvents(journey.id);
+          if (syncedCount > 0) {
+            console.log(`Synced ${syncedCount} unsynced events`);
+          }
+        }
+      } catch (error) {
+        console.error('Error syncing unsynced events:', error);
+      }
     }
   });
 
   // Process queue immediately if online
-  NetInfo.fetch().then(state => {
+  NetInfo.fetch().then(async state => {
     if (state.isConnected) {
-      processQueue();
+      await processQueue();
+
+      // Sync events on startup if online
+      try {
+        const { syncUnsyncedEvents } = require('../services/arrivalDepartureService');
+        const { getActiveJourney } = require('../services/journeyService');
+
+        const journey = await getActiveJourney();
+        if (journey) {
+          const syncedCount = await syncUnsyncedEvents(journey.id);
+          if (syncedCount > 0) {
+            console.log(`Synced ${syncedCount} unsynced events on startup`);
+          }
+        }
+      } catch (error) {
+        console.error('Error syncing events on startup:', error);
+      }
     }
   });
 
