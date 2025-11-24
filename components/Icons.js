@@ -191,6 +191,18 @@ export const EyeOffIcon = ({ color = '#555' }) => (
   </Svg>
 );
 
+export const RecordingIcon = ({ color, height, width}) => (
+    <Svg height={height || "24"} width={width || "24"} viewBox="0 0 24 24" fill="none">
+        <Circle cx="12" cy="12" r="10" stroke={color || "#000"} strokeWidth="2"/>
+        <Circle cx="12" cy="12" r="4" fill={color || "#000"}/>
+    </Svg>
+);
+export const StopRecordingIcon = ({ color, height, width}) => (
+    <Svg height={height || "24"} width={width || "24"} viewBox="0 0 24 24" fill="none">
+        <Rect x="8" y="8" width="8" height="8" fill={color || "#000"}/>
+    </Svg>
+);
+
 // --- Fake Call Icons ---
 export const RecordIcon = ({ color = '#000' }) => (
     <Svg width="24" height="24" viewBox="0 0 24 24" fill="none">

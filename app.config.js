@@ -20,6 +20,7 @@ export default {
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
         // These strings are required by Apple for location access
+        NSMicrophoneUsageDescription: "Allow $(PRODUCT_NAME) to access your microphone to record audio journals.",
         NSLocationWhenInUseUsageDescription: "This app needs access to your location to track your journeys and geofences.",
         NSLocationAlwaysAndWhenInUseUsageDescription: "This app needs background location access to monitor geofences even when the app is closed."
       }
@@ -35,7 +36,8 @@ export default {
       permissions: [
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
-        "ACCESS_BACKGROUND_LOCATION"
+        "ACCESS_BACKGROUND_LOCATION",
+        "RECORD_AUDIO" // <--- Add this line for Android
       ],
       config: {
         googleMaps: {

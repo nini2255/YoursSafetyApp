@@ -18,8 +18,8 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         padding: 16,
         borderBottomWidth: 1,
-        borderBottomColor: '#FFE4E6',
-        backgroundColor: '#FEF2F2',
+        borderBottomColor: '#FFE4E6', // Changed from '#000'
+        backgroundColor: '#FEF2F2', // Changed from '#000'
       },
       headerTitle: {
         fontSize: 20,

@@ -33,13 +33,16 @@ const SecondaryHomeScreen = ({ navigation }) => {
 
   const swipeDownGesture = Gesture.Fling()
     .direction(Directions.DOWN)
-    .runOnJS(true) // <--- Add this line ensuring it runs on the JS thread
+    .runOnJS(true)
     .onEnd(() => navigation.canGoBack() && navigation.goBack());
 
+  // --- UPDATED FEATURES LIST ---
   const features = [
     { name: 'Journal', route: 'Journal', icon: 'book-outline' },
     { name: 'Panic Button', route: 'Panic', icon: 'alert-circle-outline' },
     { name: 'Safety Timer', route: 'Timer', icon: 'time-outline' },
+    { name: 'Voice Record', route: 'Record', icon: 'mic-outline' }, // Added Recording
+    { name: 'Geofence', route: 'GeofenceManagement', icon: 'location-outline' }, // Added Geofence
     { name: 'Fake Call', route: 'Home', icon: 'call-outline' },
     { name: 'Sudoku', route: 'Home', icon: 'grid-outline' },
     { name: 'Settings', route: 'Settings', icon: 'settings-outline' },
@@ -51,6 +54,7 @@ const SecondaryHomeScreen = ({ navigation }) => {
     lastPressRef.current = now;
 
     if (feature.route === 'Home') {
+      // Handle special cases that toggle state on Home
       navigation.navigate({
         name: 'Home',
         params: {
@@ -60,6 +64,7 @@ const SecondaryHomeScreen = ({ navigation }) => {
         merge: true,
       });
     } else {
+      // Standard navigation
       navigation.navigate(feature.route);
     }
   };

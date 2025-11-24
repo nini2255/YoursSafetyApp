@@ -24,7 +24,7 @@ import { JournalProvider } from './context/JournalContext';
 import { EmergencyContactsProvider } from './context/EmergencyContactsContext';
 import { AutofillProvider } from './context/AutofillContext';
 
-import { JournalIcon, AlertIcon, TimerIcon, SettingsIcon } from './components/Icons';
+import { JournalIcon, AlertIcon, TimerIcon, SettingsIcon, RecordIcon } from './components/Icons';
 
 // Login/Signup Screens
 import LoginScreen from './screens/LoginScreen';
@@ -34,6 +34,8 @@ import SignupScreen from './screens/SignupScreen';
 import { HomePage } from './screens/HomePage';
 import SecondaryHomeScreen from './screens/SecondaryHomeScreen';
 import { JournalPage } from './screens/JournalPage';
+import { RecordingPage } from './screens/AudioRecording/RecordingPage';
+import { SavedRecords } from './screens/AudioRecording/SavedRecords';
 import { PanicPage } from './screens/PanicPage';
 import { TimerPage } from './screens/TimerPage';
 import { SettingsPage } from './screens/SettingsPage';
@@ -45,7 +47,7 @@ import FakeCallSettingsPage from './screens/FakeCallSettingsPage';
 import BackupAndRestorePage from './screens/BackupAndRestorePage';
 import UserProfileSettingsPage from './screens/UserProfileSettingsPage';
 
-//geofence
+// Geofence
 import GeofenceManagementPage from './screens/GeofenceManagementPage';
 import CreateGeofencePage from './screens/CreateGeofencePage';
 import { registerForPushNotifications, saveUserToken } from './services/expoPushService';
@@ -109,7 +111,6 @@ function AppContent() {
     volumeHoldDuration,
   });
 
-  // --- MOVED BLOCK ---
   // --- Initialize geofencing and push notifications ---
   useEffect(() => {
     const initializeGeofencing = async () => {
@@ -133,7 +134,6 @@ function AppContent() {
     };
     initializeGeofencing();
   }, []);
-  // --- END OF MOVED BLOCK ---
 
   useEffect(() => {
     settingsRef.current = {
@@ -414,26 +414,30 @@ function AppContent() {
                             onTriggerSudoku={() => setShowSudoku(true)}
                           />
                         )}
-                      </View>
-                      
-                      {!isFakeCallActive && !showSudoku && (
-                        <View style={styles.bottomNav}>
-                          <TouchableOpacity onPress={() => props.navigation.navigate('Journal')} style={styles.navButton}>
-                            <JournalIcon />
-                            <Text style={styles.navButtonText}>Journal</Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity onPress={() => props.navigation.navigate('Panic')} style={styles.navButton}>
-                            <AlertIcon />
-                            <Text style={styles.navButtonText}>Panic</Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity onPress={() => props.navigation.navigate('Timer')} style={styles.navButton}>
-                            <TimerIcon />
-                            <Text style={styles.navButtonText}>Timer</Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity onPress={() => props.navigation.navigate('Settings')} style={styles.navButton}>
-                            <SettingsIcon />
-                            <Text style={styles.navButtonText}>Settings</Text>
-                          </TouchableOpacity>
+                    </View>
+
+                    {!isFakeCallActive && !showSudoku && (
+                      <View style={styles.bottomNav}>
+                        <TouchableOpacity onPress={() => props.navigation.navigate('Journal')} style={styles.navButton}>
+                          <JournalIcon />
+                          <Text style={styles.navButtonText}>Journal</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => props.navigation.navigate('Record')} style={styles.navButton}>
+                          <RecordIcon />
+                          <Text style={styles.navButtonText}>Record</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => props.navigation.navigate('Panic')} style={styles.navButton}>
+                          <AlertIcon />
+                          <Text style={styles.navButtonText}>Panic</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => props.navigation.navigate('Timer')} style={styles.navButton}>
+                          <TimerIcon />
+                          <Text style={styles.navButtonText}>Timer</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => props.navigation.navigate('Settings')} style={styles.navButton}>
+                          <SettingsIcon />
+                          <Text style={styles.navButtonText}>Settings</Text>
+                        </TouchableOpacity>
                         </View>
                       )}
 
@@ -460,6 +464,16 @@ function AppContent() {
                 />
 
                 <Stack.Screen name="Journal" component={JournalPage} />
+                <Stack.Screen name="Record" component={RecordingPage} />
+                <Stack.Screen 
+                  name="SavedRecords" 
+                  component={SavedRecords} 
+                  options={{ 
+                    headerShown: true, 
+                    title: 'Recordings',
+                    headerBackTitle: 'Back'
+                  }} 
+                />
                 <Stack.Screen name="Panic" component={PanicPage} />
                 <Stack.Screen name="Timer" component={TimerPage} />
                 <Stack.Screen name="Settings" component={SettingsPage} />
@@ -493,9 +507,9 @@ function AppContent() {
                 <Stack.Screen name="TrackAFriend" component={TrackAFriendPage} />
                 <Stack.Screen name="TrackingDetail" component={TrackingDetailPage} />
                 <Stack.Screen name="LocationHistory" component={LocationHistoryPage} />
-                  <Stack.Screen name="GeofenceManagement" component={GeofenceManagementPage} />
-
+                <Stack.Screen name="GeofenceManagement" component={GeofenceManagementPage} />
                 <Stack.Screen name="CreateGeofence" component={CreateGeofencePage} />
+
               </>
             ) : (
               <>
