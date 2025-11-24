@@ -8,10 +8,13 @@ import {
   Pressable, 
   Alert, 
   TouchableOpacity,
-  StatusBar 
+  StatusBar,
+  Modal,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform
 } from 'react-native';
 import { Audio } from 'expo-av';
-// --- FIX: Use legacy import for compatibility with SDK 54 ---
 import * as FileSystem from 'expo-file-system/legacy'; 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -27,13 +30,16 @@ export const SavedRecords = ({ navigation }) => {
   const [playingUri, setPlayingUri] = useState(null);
   const soundRef = useRef(new Audio.Sound());
 
+  // --- Modal State for Rename/Note (Android Support) ---
+  const [modalVisible, setModalVisible] = useState(false);
+  const [modalTitle, setModalTitle] = useState('');
+  const [inputValue, setInputValue] = useState('');
+  const [activeItemUri, setActiveItemUri] = useState(null);
+  const [activeAction, setActiveAction] = useState(null); // 'rename' or 'note'
+
   useEffect(() => {
-    // Initial Load
     loadFiles();
-
-    // Poll for new files (refresh list if a new recording is saved)
     const interval = setInterval(loadFiles, 2000);
-
     return () => {
       clearInterval(interval);
       unloadSound();
@@ -59,11 +65,10 @@ export const SavedRecords = ({ navigation }) => {
       const list = names.map((name) => ({
         name,
         uri: RECORDINGS_DIR + name,
-      })).reverse(); // Show newest first
+      })).reverse(); 
 
       setFiles(list);
 
-      // Load metadata
       const metaEntries = {};
       for (const item of list) {
         const key = metaKeyFor(item.uri);
@@ -78,23 +83,17 @@ export const SavedRecords = ({ navigation }) => {
 
   const playPause = async (uri) => {
     try {
-      // If clicking the currently playing file, stop it
       if (playingUri === uri) {
         await soundRef.current.stopAsync();
         await soundRef.current.unloadAsync();
         setPlayingUri(null);
         return;
       }
-
-      // Stop any other playing sound
       if (playingUri) {
         await soundRef.current.unloadAsync();
       }
-
-      // Play new file
       await soundRef.current.loadAsync({ uri }, { shouldPlay: true });
       setPlayingUri(uri);
-      
       soundRef.current.setOnPlaybackStatusUpdate((status) => {
         if (status.didJustFinish) {
           setPlayingUri(null);
@@ -108,7 +107,6 @@ export const SavedRecords = ({ navigation }) => {
   };
 
   const parseRecordingDate = (filename) => {
-    // Format: HH:MM:SS_MM-DD-YYYY.mp3
     try {
       const base = filename.replace('.mp3', '');
       const [timePart, datePart] = base.split('_');
@@ -124,7 +122,7 @@ export const SavedRecords = ({ navigation }) => {
       case 'danger': return '#EF4444';
       case 'warning': return '#F59E0B';
       case 'suspicious': return '#8B5CF6';
-      default: return '#E5E7EB'; // Grey for regular
+      default: return '#E5E7EB'; 
     }
   };
 
@@ -147,7 +145,7 @@ export const SavedRecords = ({ navigation }) => {
             try {
               await FileSystem.deleteAsync(uri);
               await AsyncStorage.removeItem(metaKeyFor(uri));
-              loadFiles(); // Refresh list immediately
+              loadFiles(); 
             } catch (error) {
               console.error('Delete failed', error);
             }
@@ -157,17 +155,36 @@ export const SavedRecords = ({ navigation }) => {
     );
   };
 
-  const handleEditName = (uri, currentName) => {
-    Alert.prompt(
-      'Rename Recording',
-      null,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Save', onPress: text => updateMetadata(uri, 'displayName', text) }
-      ],
-      'plain-text',
-      currentName
-    );
+  // --- Actions that trigger the Modal ---
+
+  const openRenameModal = (uri, currentName) => {
+    setActiveItemUri(uri);
+    setActiveAction('rename');
+    setModalTitle('Rename Recording');
+    setInputValue(currentName);
+    setModalVisible(true);
+  };
+
+  const openNoteModal = (uri, currentNote) => {
+    setActiveItemUri(uri);
+    setActiveAction('note');
+    setModalTitle('Add Note');
+    setInputValue(currentNote || '');
+    setModalVisible(true);
+  };
+
+  const handleModalSave = () => {
+    if (!activeItemUri) return;
+
+    if (activeAction === 'rename') {
+      updateMetadata(activeItemUri, 'displayName', inputValue);
+    } else if (activeAction === 'note') {
+      updateMetadata(activeItemUri, 'description', inputValue);
+    }
+    
+    setModalVisible(false);
+    setActiveItemUri(null);
+    setInputValue('');
   };
 
   const handleSetSeverity = (uri) => {
@@ -192,12 +209,9 @@ export const SavedRecords = ({ navigation }) => {
 
     return (
       <View style={styles.card}>
-        {/* Severity Strip */}
         <View style={[styles.severityStrip, { backgroundColor: severityColor }]} />
         
         <View style={styles.cardContent}>
-          
-          {/* Top Row: Play Button & Info */}
           <View style={styles.topRow}>
             <TouchableOpacity 
               style={[styles.playButton, isPlaying && styles.playButtonActive]} 
@@ -215,20 +229,17 @@ export const SavedRecords = ({ navigation }) => {
               <Text style={styles.date}>{parseRecordingDate(item.name)}</Text>
             </View>
             
-            {/* Severity Badge (Icon) */}
             {meta.severity && meta.severity !== 'regular' && (
                <Ionicons name="flag" size={16} color={severityColor} style={{marginRight: 10}}/>
             )}
           </View>
 
-          {/* Description (if exists) */}
           {meta.description ? (
             <Text style={styles.description} numberOfLines={2}>{meta.description}</Text>
           ) : null}
 
-          {/* Bottom Row: Actions */}
           <View style={styles.actionRow}>
-            <TouchableOpacity style={styles.actionBtn} onPress={() => handleEditName(item.uri, displayName)}>
+            <TouchableOpacity style={styles.actionBtn} onPress={() => openRenameModal(item.uri, displayName)}>
               <Ionicons name="pencil-outline" size={16} color="#6B7280" />
               <Text style={styles.actionText}>Rename</Text>
             </TouchableOpacity>
@@ -238,12 +249,7 @@ export const SavedRecords = ({ navigation }) => {
               <Text style={styles.actionText}>Flag</Text>
             </TouchableOpacity>
             
-            <TouchableOpacity style={styles.actionBtn} onPress={() => {
-               Alert.prompt('Add Note', 'Enter description:', [
-                 { text: 'Cancel' }, 
-                 { text: 'Save', onPress: t => updateMetadata(item.uri, 'description', t) }
-               ], 'plain-text', meta.description)
-            }}>
+            <TouchableOpacity style={styles.actionBtn} onPress={() => openNoteModal(item.uri, meta.description)}>
               <Ionicons name="document-text-outline" size={16} color="#6B7280" />
               <Text style={styles.actionText}>Note</Text>
             </TouchableOpacity>
@@ -254,7 +260,6 @@ export const SavedRecords = ({ navigation }) => {
               <Ionicons name="trash-outline" size={18} color="#EF4444" />
             </TouchableOpacity>
           </View>
-
         </View>
       </View>
     );
@@ -277,6 +282,47 @@ export const SavedRecords = ({ navigation }) => {
           </View>
         }
       />
+
+      {/* --- Custom Input Modal (Works on Android & iOS) --- */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={modalVisible}
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles.modalOverlay}
+        >
+          <View style={styles.modalView}>
+            <Text style={styles.modalTitle}>{modalTitle}</Text>
+            <TextInput
+              style={styles.modalInput}
+              onChangeText={setInputValue}
+              value={inputValue}
+              autoFocus={true}
+              placeholder="Enter text..."
+              multiline={activeAction === 'note'}
+              numberOfLines={activeAction === 'note' ? 3 : 1}
+            />
+            <View style={styles.modalButtons}>
+              <Pressable
+                style={[styles.modalBtn, styles.cancelBtn]}
+                onPress={() => setModalVisible(false)}
+              >
+                <Text style={styles.cancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.modalBtn, styles.saveBtn]}
+                onPress={handleModalSave}
+              >
+                <Text style={styles.saveText}>Save</Text>
+              </Pressable>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
     </SafeAreaView>
   );
 };
@@ -290,7 +336,6 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingBottom: 100,
   },
-  
   // Card Styles
   card: {
     flexDirection: 'row',
@@ -312,8 +357,6 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 16,
   },
-  
-  // Top Row
   topRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -348,17 +391,13 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     fontWeight: '500',
   },
-  
-  // Description
   description: {
     fontSize: 13,
     color: '#4B5563',
     fontStyle: 'italic',
     marginBottom: 12,
-    marginLeft: 56, // Align with text start
+    marginLeft: 56, 
   },
-  
-  // Actions
   actionRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -382,8 +421,6 @@ const styles = StyleSheet.create({
   deleteBtn: {
     padding: 4,
   },
-  
-  // Empty State
   emptyState: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -399,5 +436,63 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontSize: 14,
     color: '#9CA3AF',
+  },
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  modalView: {
+    width: '80%',
+    backgroundColor: 'white',
+    borderRadius: 20,
+    padding: 25,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 15,
+    color: '#1F2937',
+  },
+  modalInput: {
+    width: '100%',
+    backgroundColor: '#F3F4F6',
+    borderRadius: 10,
+    padding: 12,
+    fontSize: 16,
+    marginBottom: 20,
+    color: '#1F2937',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    width: '100%',
+  },
+  modalBtn: {
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginLeft: 10,
+  },
+  cancelBtn: {
+    backgroundColor: '#E5E7EB',
+  },
+  saveBtn: {
+    backgroundColor: CORAL_COLOR,
+  },
+  cancelText: {
+    color: '#374151',
+    fontWeight: '600',
+  },
+  saveText: {
+    color: 'white',
+    fontWeight: '600',
   },
 });
