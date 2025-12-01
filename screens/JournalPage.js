@@ -1,3 +1,5 @@
+// rafaelanunez/yoursapp/yoursApp-main/screens/JournalPage.js
+
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   View,
@@ -6,18 +8,16 @@ import {
   TouchableOpacity,
   StyleSheet,
   Alert,
-  Image // Added for attachments
+  Image
 } from 'react-native';
 import { useJournal } from '../context/JournalContext';
 import { PageHeader } from '../components/PageHeader';
 import { JournalTemplateModal } from '../components/JournalTemplateModal';
 import { JournalEntryForm } from '../components/JournalEntryForm';
 import { IncidentReportForm } from '../components/IncidentReportForm';
-// Import LocationPinIcon (assuming it's in Icons.js)
 import { JournalIcon, EditIcon, DeleteIcon } from '../components/Icons';
-import { Video, Audio } from 'expo-av'; // Added for video/audio playback
+import { Video, Audio } from 'expo-av';
 
-// Helper function to get mood emoji from a saved key
 const getMoodEmoji = (moodKey) => {
   const moodMap = {
     'rad': '😁',
@@ -26,7 +26,7 @@ const getMoodEmoji = (moodKey) => {
     'bad': '😟',
     'awful': '😢',
   };
-  return moodMap[moodKey] || null; // Return the emoji or null
+  return moodMap[moodKey] || null;
 };
 
 export const JournalPage = ({ navigation }) => {
@@ -37,14 +37,10 @@ export const JournalPage = ({ navigation }) => {
   const [editingEntry, setEditingEntry] = useState(null);
   const [templateData, setTemplateData] = useState(null);
   
-  // State for Expanded Item
   const [expandedEntryId, setExpandedEntryId] = useState(null);
-  
-  // Refs and Effects for Audio Playback
   const soundRef = useRef(new Audio.Sound());
 
   useEffect(() => {
-    // Unload the sound object when the component unmounts
     return () => {
       soundRef.current.unloadAsync();
     };
@@ -53,7 +49,9 @@ export const JournalPage = ({ navigation }) => {
   const groupedEntries = useMemo(() => {
     if (isLoading || entries.length === 0) return [];
     
-    const groups = entries.reduce((acc, entry) => {
+    const sortedEntries = [...entries].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    const groups = sortedEntries.reduce((acc, entry) => {
       const date = new Date(entry.date).toLocaleDateString(undefined, {
         year: 'numeric', month: 'long', day: 'numeric'
       });
@@ -105,7 +103,7 @@ export const JournalPage = ({ navigation }) => {
           notes: 'Interaction with: [Person\'s Name]\nOutcome: [Good/Mild/Bad]\n\nNotes:\n',
         };
         break;
-      default: // blank
+      default:
         break;
     }
     setTemplateData(data);
@@ -125,7 +123,6 @@ export const JournalPage = ({ navigation }) => {
   const handleSaveEntry = async (entryData) => {
     try {
       if (editingEntry) {
-        // Pass all data, including new tags, to updateEntry
         await updateEntry(editingEntry.id, entryData);
       } else {
         await addEntry(entryData);
@@ -144,34 +141,23 @@ export const JournalPage = ({ navigation }) => {
       `Are you sure you want to delete "${entry.title}"?`,
       [
         { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => deleteEntry(entry.id),
-        },
+        { text: 'Delete', style: 'destructive', onPress: () => deleteEntry(entry.id) },
       ]
     );
   };
   
   const getSeverityColor = (severity) => {
-      const colors = {
-        danger: '#FECACA',
-        warning: '#FEF08A',
-        suspicious: '#E5E7EB',
-        regular: 'white'
-      };
+      const colors = { danger: '#FECACA', warning: '#FEF08A', suspicious: '#E5E7EB', regular: 'white' };
       return colors[severity] || 'white';
   }
 
-  // Function to Toggle Expanded State
   const handleToggleExpand = (itemId) => {
     setExpandedEntryId(prevId => (prevId === itemId ? null : itemId));
   };
 
-  // Function to Play Audio
   const playSound = async (uri) => {
     try {
-      await soundRef.current.unloadAsync(); // Unload previous sound
+      await soundRef.current.unloadAsync(); 
       await soundRef.current.loadAsync({ uri });
       await soundRef.current.playAsync();
     } catch (error) {
@@ -180,46 +166,30 @@ export const JournalPage = ({ navigation }) => {
     }
   };
 
-  // --- NEW: Helper function to render tags ---
   const renderTags = (item) => {
     const { mood, location, activityTags } = item;
     const moodEmoji = getMoodEmoji(mood);
     const hasLocation = location && location.trim().length > 0;
     const hasActivities = activityTags && activityTags.length > 0;
 
-    // Don't render the container if there are no tags at all
-    if (!moodEmoji && !hasLocation && !hasActivities) {
-      return null; 
-    }
+    if (!moodEmoji && !hasLocation && !hasActivities) return null; 
 
     return (
       <View style={styles.tagsContainer}>
-        {/* Mood Emoji */}
-        {moodEmoji && (
-          <Text style={styles.moodTag}>{moodEmoji}</Text>
-        )}
-
-        {/* Location */}
+        {moodEmoji && <Text style={styles.moodTag}>{moodEmoji}</Text>}
         {hasLocation && (
           <View style={styles.tagChip}>
-            {/* If you don't have LocationPinIcon, you can remove this Icon component */}
-            
             <Text style={styles.tagText}>{location}</Text>
           </View>
         )}
-
-        {/* Activity Tags */}
         {hasActivities && activityTags.map((tag, index) => (
           <View key={index} style={styles.tagChip}>
-            {/* You could add icons here later based on tag name */}
             <Text style={styles.tagText}>{tag}</Text>
           </View>
         ))}
       </View>
     );
   };
-  // --- END NEW FUNCTION ---
-
 
   if (isLoading) {
     return (
@@ -233,36 +203,41 @@ export const JournalPage = ({ navigation }) => {
   }
 
   const renderJournalItem = ({ item }) => {
-    // Check if item is expanded
     const isExpanded = item.id === expandedEntryId;
+    const firstImage = item.attachments?.find(att => att.type === 'image');
 
     return (
-      // Made entire item tappable
       <TouchableOpacity
         style={[styles.journalItem, {backgroundColor: getSeverityColor(item.severity)}]}
         onPress={() => handleToggleExpand(item.id)}
         activeOpacity={0.7}
       >
-        <View style={styles.journalItemContent}>
-          <Text style={styles.journalItemTitle}>{item.title}</Text>
-          <Text style={styles.journalItemDate}>
-            {new Date(item.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-          </Text>
-           {item.isIncidentReport ? (
-              <>
-                <Text style={styles.incidentDetail}><Text style={{fontWeight: 'bold'}}>Person: </Text>{item.personName} ({item.relationship})</Text>
-                <Text style={styles.incidentDetail}><Text style={{fontWeight: 'bold'}}>Location: </Text>{item.location}</Text>
-                <Text style={styles.incidentDetail}><Text style={{fontWeight: 'bold'}}>Incident: </Text>{item.incidentType}</Text>
-                {/* Expandable description */}
-                <Text style={styles.journalItemNotes} numberOfLines={isExpanded ? undefined : 3}>{item.description}</Text>
-              </>
-           ) : (
-              // Expandable notes
-              <Text style={styles.journalItemNotes} numberOfLines={isExpanded ? undefined : 3}>{item.notes}</Text>
-           )}
+        <View style={styles.journalItemMainRow}>
+            <View style={styles.journalItemContent}>
+                <Text style={styles.journalItemTitle}>{item.title}</Text>
+                <Text style={styles.journalItemDate}>
+                    {new Date(item.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </Text>
+                {item.isIncidentReport ? (
+                    <>
+                        <Text style={styles.incidentDetail}><Text style={{fontWeight: 'bold'}}>Person: </Text>{item.personName} ({item.relationship})</Text>
+                        <Text style={styles.incidentDetail}><Text style={{fontWeight: 'bold'}}>Location: </Text>{item.location}</Text>
+                        <Text style={styles.incidentDetail}><Text style={{fontWeight: 'bold'}}>Incident: </Text>{item.incidentType}</Text>
+                        <Text style={styles.journalItemNotes} numberOfLines={isExpanded ? undefined : 3}>{item.description}</Text>
+                    </>
+                ) : (
+                    <Text style={styles.journalItemNotes} numberOfLines={isExpanded ? undefined : 3}>{item.notes}</Text>
+                )}
+            </View>
 
-           {/* Block: Render Attachments if Expanded */}
-           {isExpanded && item.attachments && (
+            {/* Thumbnail: Increased Size */}
+            {firstImage && !isExpanded && (
+                <Image source={{ uri: firstImage.uri }} style={styles.thumbnail} />
+            )}
+        </View>
+
+        <View>
+            {isExpanded && item.attachments && (
              <View style={styles.attachmentContainer}>
                {item.attachments.map((att, index) => {
                  if (att.type === 'image') {
@@ -292,17 +267,12 @@ export const JournalPage = ({ navigation }) => {
                })}
              </View>
            )}
-           {/* End Attachments */}
-
-           {/* --- CALL renderTags FUNCTION --- */}
-           {/* Only show tags if the item is NOT expanded, like in the image */}
-           {!isExpanded && renderTags(item)}
-
+           {renderTags(item)}
         </View>
-        <View style={styles.journalActions}>
+
+        <View style={styles.journalActionsRow}>
           <TouchableOpacity
             style={styles.actionButton}
-            // Stop press from bubbling up to the expand toggle
             onPressIn={(e) => e.stopPropagation()}
             onPress={() => handleEditEntry(item)}
           >
@@ -322,7 +292,6 @@ export const JournalPage = ({ navigation }) => {
 
   return (
     <View style={styles.fullPage}>
-      {/* Use navigation.goBack() for the onBack prop */}
       <PageHeader title="My Journal" onBack={() => navigation.goBack()} />
 
       <View style={styles.journalContainer}>
@@ -343,7 +312,6 @@ export const JournalPage = ({ navigation }) => {
                 <Text style={styles.sectionHeader}>{title}</Text>
             )}
             showsVerticalScrollIndicator={false}
-            // Add this to make sure expanded item doesn't get clipped
             extraData={expandedEntryId}
           />
         )}
@@ -359,7 +327,6 @@ export const JournalPage = ({ navigation }) => {
         onSelectTemplate={handleSelectTemplate}
       />
 
-      {/* Pass all props to the form */}
       <JournalEntryForm
         visible={formVisible}
         entry={editingEntry}
@@ -427,11 +394,22 @@ const styles = StyleSheet.create({
       shadowOffset: { width: 0, height: 1 },
       shadowOpacity: 0.05,
       shadowRadius: 2,
-      flexDirection: 'row',
-      justifyContent: 'space-between',
+      flexDirection: 'column', 
+    },
+    journalItemMainRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
     },
     journalItemContent: {
       flex: 1,
+      marginRight: 10,
+    },
+    // Updated thumbnail size
+    thumbnail: {
+        width: 100,
+        height: 100,
+        borderRadius: 8,
+        backgroundColor: '#E5E7EB',
     },
     journalItemTitle: {
       fontSize: 18,
@@ -455,13 +433,17 @@ const styles = StyleSheet.create({
         color: '#4B5563',
         marginBottom: 2,
     },
-    journalActions: {
-      flexDirection: 'column',
-      justifyContent: 'space-between',
-      marginLeft: 16,
+    journalActionsRow: {
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+      marginTop: 10,
+      borderTopWidth: 1,
+      borderTopColor: 'rgba(0,0,0,0.05)',
+      paddingTop: 8,
     },
     actionButton: {
         padding: 8,
+        marginLeft: 10,
     },
     floatingActionButton: {
         position: 'absolute',
@@ -480,7 +462,6 @@ const styles = StyleSheet.create({
         fontSize: 30,
         lineHeight: 34,
       },
-    // Styles for Attachments
     attachmentContainer: {
       marginTop: 12,
     },
@@ -495,7 +476,7 @@ const styles = StyleSheet.create({
       height: 200,
       borderRadius: 8,
       marginBottom: 8,
-      backgroundColor: '#000', // Video background
+      backgroundColor: '#000',
     },
     audioButton: {
       backgroundColor: '#F472B6',
@@ -509,26 +490,23 @@ const styles = StyleSheet.create({
       fontWeight: 'bold',
       fontSize: 14,
     },
-
-    // --- NEW STYLES FOR TAGS ---
     tagsContainer: {
       flexDirection: 'row',
       flexWrap: 'wrap',
       alignItems: 'center',
       marginTop: 10,
-      borderTopWidth: 1, // Adds the separator line
-      borderTopColor: 'rgba(0, 0, 0, 0.1)', // Light separator
+      borderTopWidth: 1,
+      borderTopColor: 'rgba(0, 0, 0, 0.1)',
       paddingTop: 8,
     },
     moodTag: {
       fontSize: 20,
       marginRight: 8,
-      // The emoji itself provides the color
     },
     tagChip: {
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: '#F3F4F6', // Light gray background
+      backgroundColor: '#F3F4F6',
       borderRadius: 16,
       paddingVertical: 4,
       paddingHorizontal: 10,
@@ -540,6 +518,6 @@ const styles = StyleSheet.create({
       color: '#4B5563',
       marginLeft: 4,
       fontWeight: '500',
-      textTransform: 'capitalize', // Show tags like 'Family' or 'Friends'
+      textTransform: 'capitalize',
     },
 });
