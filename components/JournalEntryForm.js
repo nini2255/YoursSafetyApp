@@ -1,5 +1,3 @@
-// rafaelanunez/yoursapp/yoursApp-notification/components/JournalEntryForm.js
-
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   View, 
@@ -14,10 +12,11 @@ import {
   SafeAreaView,
   Platform,
   Dimensions,
-  FlatList // Added for calendar lists
+  FlatList,
+  KeyboardAvoidingView
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import * as DocumentPicker from 'expo-document-picker'; // Added for audio upload
+import * as DocumentPicker from 'expo-document-picker';
 import { Audio, Video } from 'expo-av';
 import * as FileSystem from 'expo-file-system/legacy';
 import { MoodSelection } from './MoodSelection'; 
@@ -29,18 +28,17 @@ const predefinedActivityTags = [
   'gaming', 'reading', 'cleaning', 'sleep early', 'eat healthy', 'shopping'
 ];
 
-// --- Enhanced Custom Calendar Component ---
+// --- Custom Calendar Component ---
 const CustomCalendar = ({ selectedDate, onSelectDate }) => {
   const [currentMonth, setCurrentMonth] = useState(new Date(selectedDate || Date.now()));
   const [viewMode, setViewMode] = useState('day'); // 'day', 'month', 'year'
 
-  // Helper arrays
   const months = [
     "January", "February", "March", "April", "May", "June",
     "July", "August", "September", "October", "November", "December"
   ];
   
-  // Generate array of years (e.g., 1900 - 2100)
+  // Generate 101 years centered on current year
   const currentYear = new Date().getFullYear();
   const years = Array.from({length: 101}, (_, i) => currentYear - 50 + i);
 
@@ -66,8 +64,6 @@ const CustomCalendar = ({ selectedDate, onSelectDate }) => {
     setCurrentMonth(newDate);
     setViewMode('day');
   };
-
-  // --- Render Functions for Modes ---
 
   const renderDays = () => {
     const days = [];
@@ -132,10 +128,7 @@ const CustomCalendar = ({ selectedDate, onSelectDate }) => {
       keyExtractor={(item) => item.toString()}
       numColumns={4}
       contentContainerStyle={styles.yearListContainer}
-      initialScrollIndex={50} // Approximate middle
-      getItemLayout={(data, index) => (
-        {length: 50, offset: 50 * index, index}
-      )}
+      showsVerticalScrollIndicator={true}
       renderItem={({ item }) => (
         <TouchableOpacity 
           style={[
@@ -155,7 +148,7 @@ const CustomCalendar = ({ selectedDate, onSelectDate }) => {
 
   return (
     <View style={styles.calendarContainer}>
-      {/* Header with Clickable Title */}
+      {/* Header */}
       <View style={styles.calendarHeader}>
         {viewMode === 'day' && (
           <TouchableOpacity onPress={() => changeMonth(-1)} style={styles.monthNavButton}>
@@ -181,7 +174,7 @@ const CustomCalendar = ({ selectedDate, onSelectDate }) => {
         )}
       </View>
 
-      {/* Sub-header for Month/Year switching if in picker mode */}
+      {/* View Switcher */}
       {viewMode !== 'day' && (
         <View style={styles.modeSwitchContainer}>
           <TouchableOpacity 
@@ -199,7 +192,7 @@ const CustomCalendar = ({ selectedDate, onSelectDate }) => {
         </View>
       )}
 
-      {/* Content Body */}
+      {/* Body */}
       <View style={styles.calendarBody}>
         {viewMode === 'day' && (
           <>
@@ -294,7 +287,7 @@ export const JournalEntryForm = ({ visible, entry, onClose, onSave, templateData
   const handlePickMedia = async (mediaType) => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission Denied', 'We need permission to access your media library.');
+      Alert.alert('Permission Denied', 'Permission to access media library is required.');
       return;
     }
     let result = await ImagePicker.launchImageLibraryAsync({
@@ -309,7 +302,7 @@ export const JournalEntryForm = ({ visible, entry, onClose, onSave, templateData
     }
   };
 
-  // --- NEW: Audio Upload Handler ---
+  // Upload Audio File
   const handlePickAudio = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
@@ -343,7 +336,7 @@ export const JournalEntryForm = ({ visible, entry, onClose, onSave, templateData
     try {
       const { status } = await Audio.requestPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission Denied', 'We need permission to use the microphone.');
+        Alert.alert('Permission Denied', 'Permission to access microphone is required.');
         return;
       }
       await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
@@ -427,10 +420,11 @@ export const JournalEntryForm = ({ visible, entry, onClose, onSave, templateData
     }
   };
 
-  // --- Render Steps ---
+  // --- Render Steps (Containers managed individually) ---
 
+  // Step 1: Calendar (Uses View, avoids ScrollView conflict with List)
   const renderStepWhen = () => (
-    <View style={styles.stepContainer}>
+    <View style={[styles.stepContainer, { flex: 1 }]}>
       <Text style={styles.stepTitle}>When did this happen?</Text>
       <Text style={styles.stepSubtitle}>Tap the month or year to jump</Text>
       <CustomCalendar selectedDate={date} onSelectDate={setDate} />
@@ -442,55 +436,62 @@ export const JournalEntryForm = ({ visible, entry, onClose, onSave, templateData
     </View>
   );
 
+  // Step 2: Location (Uses ScrollView)
   const renderStepWhere = () => (
-    <View style={styles.stepContainer}>
-      <Text style={styles.stepTitle}>Where were you?</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="e.g., Home, Central Park, Office"
-        placeholderTextColor="#9CA3AF"
-        value={location}
-        onChangeText={setLocation}
-        maxLength={100}
-        autoFocus={true}
-      />
-    </View>
-  );
-
-  const renderStepWhoWhat = () => (
-    <View style={styles.stepContainer}>
-      <Text style={styles.stepTitle}>How are you feeling?</Text>
-      <MoodSelection selectedMood={selectedMood} onSelectMood={setSelectedMood} />
-      
-      <Text style={[styles.stepTitle, {marginTop: 30}]}>What have you been up to?</Text>
-      <View style={styles.tagsContainer}>
-        {[...predefinedActivityTags, ...selectedActivityTags.filter(tag => !predefinedActivityTags.includes(tag))].map((tag) => (
-          <TouchableOpacity
-            key={tag}
-            style={[styles.tagButton, selectedActivityTags.includes(tag) && styles.tagButtonSelected]}
-            onPress={() => toggleActivityTag(tag)}
-          >
-            <Text style={[styles.tagButtonText, selectedActivityTags.includes(tag) && styles.tagButtonTextSelected]}>{tag}</Text>
-          </TouchableOpacity>
-        ))}
-        <View style={styles.customTagInputContainer}>
-          <TextInput
-            style={styles.customTagInput}
-            placeholder="Add new tag"
+    <ScrollView style={styles.scrollContent} keyboardShouldPersistTaps="handled">
+        <View style={styles.stepContainer}>
+        <Text style={styles.stepTitle}>Where were you?</Text>
+        <TextInput
+            style={styles.input}
+            placeholder="e.g., Home, Central Park, Office"
             placeholderTextColor="#9CA3AF"
-            value={customTagInput}
-            onChangeText={setCustomTagInput}
-            onSubmitEditing={addCustomTag}
-            returnKeyType="done"
-          />
-          <TouchableOpacity style={styles.addTagButton} onPress={addCustomTag}>
-            <Text style={styles.addTagButtonText}>+</Text>
-          </TouchableOpacity>
+            value={location}
+            onChangeText={setLocation}
+            maxLength={100}
+            autoFocus={true}
+        />
         </View>
-      </View>
-    </View>
+    </ScrollView>
   );
 
+  // Step 3: Tags (Uses ScrollView)
+  const renderStepWhoWhat = () => (
+    <ScrollView style={styles.scrollContent} keyboardShouldPersistTaps="handled">
+        <View style={styles.stepContainer}>
+        <Text style={styles.stepTitle}>How are you feeling?</Text>
+        <MoodSelection selectedMood={selectedMood} onSelectMood={setSelectedMood} />
+        
+        <Text style={[styles.stepTitle, {marginTop: 30}]}>What have you been up to?</Text>
+        <View style={styles.tagsContainer}>
+            {[...predefinedActivityTags, ...selectedActivityTags.filter(tag => !predefinedActivityTags.includes(tag))].map((tag) => (
+            <TouchableOpacity
+                key={tag}
+                style={[styles.tagButton, selectedActivityTags.includes(tag) && styles.tagButtonSelected]}
+                onPress={() => toggleActivityTag(tag)}
+            >
+                <Text style={[styles.tagButtonText, selectedActivityTags.includes(tag) && styles.tagButtonTextSelected]}>{tag}</Text>
+            </TouchableOpacity>
+            ))}
+            <View style={styles.customTagInputContainer}>
+            <TextInput
+                style={styles.customTagInput}
+                placeholder="Add new tag"
+                placeholderTextColor="#9CA3AF"
+                value={customTagInput}
+                onChangeText={setCustomTagInput}
+                onSubmitEditing={addCustomTag}
+                returnKeyType="done"
+            />
+            <TouchableOpacity style={styles.addTagButton} onPress={addCustomTag}>
+                <Text style={styles.addTagButtonText}>+</Text>
+            </TouchableOpacity>
+            </View>
+        </View>
+        </View>
+    </ScrollView>
+  );
+
+  // Step 4: Journal (Uses ScrollView with flexGrow for full screen writing)
   const renderStepJournal = () => (
     <View style={[styles.stepContainer, { flex: 1, paddingBottom: 0 }]}>
       <Text style={styles.stepTitle}>Write your entry</Text>
@@ -542,6 +543,7 @@ export const JournalEntryForm = ({ visible, entry, onClose, onSave, templateData
   return (
     <Modal visible={visible} animationType="slide">
       <SafeAreaView style={styles.fullScreenContainer}>
+        {/* Header */}
         <View style={styles.headerBar}>
           <TouchableOpacity onPress={onClose} style={styles.headerButton}>
             <Text style={styles.headerButtonText}>Cancel</Text>
@@ -550,31 +552,34 @@ export const JournalEntryForm = ({ visible, entry, onClose, onSave, templateData
           <View style={styles.headerButton} /> 
         </View>
 
-        <ScrollView 
-            contentContainerStyle={styles.scrollContentContainer}
-            style={styles.scrollContent} 
-            keyboardShouldPersistTaps="handled"
-        >
-          {steps[currentStep]()}
-        </ScrollView>
-
-        <View style={styles.formActions}>
-          {currentStep > 0 ? (
-            <TouchableOpacity style={styles.navButtonSecondary} onPress={goBack}>
-              <Text style={styles.navButtonTextSecondary}>Back</Text>
-            </TouchableOpacity>
-          ) : <View />}
-
-          {currentStep < 3 ? (
-            <TouchableOpacity style={styles.navButtonPrimary} onPress={goNext}>
-              <Text style={styles.navButtonTextPrimary}>Next</Text>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-              <Text style={styles.saveButtonText}>Save Entry</Text>
-            </TouchableOpacity>
-          )}
+        {/* Content - No wrapper ScrollView here to prevent nesting errors */}
+        <View style={{flex: 1}}>
+            {steps[currentStep]()}
         </View>
+
+        {/* Footer Actions */}
+        <KeyboardAvoidingView 
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
+        >
+            <View style={styles.formActions}>
+            {currentStep > 0 ? (
+                <TouchableOpacity style={styles.navButtonSecondary} onPress={goBack}>
+                <Text style={styles.navButtonTextSecondary}>Back</Text>
+                </TouchableOpacity>
+            ) : <View />}
+
+            {currentStep < 3 ? (
+                <TouchableOpacity style={styles.navButtonPrimary} onPress={goNext}>
+                <Text style={styles.navButtonTextPrimary}>Next</Text>
+                </TouchableOpacity>
+            ) : (
+                <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
+                <Text style={styles.saveButtonText}>Save Entry</Text>
+                </TouchableOpacity>
+            )}
+            </View>
+        </KeyboardAvoidingView>
       </SafeAreaView>
     </Modal>
   );
@@ -608,16 +613,18 @@ const styles = StyleSheet.create({
       fontWeight: '600',
       color: '#374151',
     },
+    // Main scrolling container styles for individual steps
     scrollContent: {
         flex: 1,
     },
     scrollContentContainer: {
-        flexGrow: 1, // Ensures content takes full height for full-screen input
+        flexGrow: 1,
         paddingHorizontal: 20,
     },
     stepContainer: {
       marginTop: 20,
       paddingBottom: 40,
+      paddingHorizontal: 20, // Added padding here since parent ScrollView no longer has it
     },
     stepTitle: {
       fontSize: 24,
@@ -642,10 +649,9 @@ const styles = StyleSheet.create({
       backgroundColor: '#F9FAFB',
       marginTop: 10,
     },
-    // Enhanced full screen input style
     fullScreenInput: {
       flex: 1, 
-      minHeight: 300, // Good base size, expands with flexGrow
+      minHeight: 250,
       textAlignVertical: 'top',
       marginBottom: 20,
     },
@@ -698,8 +704,8 @@ const styles = StyleSheet.create({
       padding: 10,
       borderWidth: 1,
       borderColor: '#E5E7EB',
-      marginHorizontal: 10,
-      minHeight: 350, // Fix height to prevent jumping
+      minHeight: 400, 
+      flex: 1, // Allow calendar to grow
     },
     calendarHeader: {
       flexDirection: 'row',
@@ -806,9 +812,10 @@ const styles = StyleSheet.create({
     },
     yearListContainer: {
       alignItems: 'center',
+      paddingBottom: 20,
     },
     selectionItem: {
-      width: '30%',
+      width: '22%', // Adjusted for 4 columns
       paddingVertical: 12,
       marginVertical: 5,
       backgroundColor: '#F9FAFB',
@@ -820,7 +827,7 @@ const styles = StyleSheet.create({
       backgroundColor: '#F472B6',
     },
     selectionItemText: {
-      fontSize: 16,
+      fontSize: 14,
       color: '#374151',
     },
     selectionItemTextSelected: {
@@ -895,7 +902,7 @@ const styles = StyleSheet.create({
     },
     mediaButtonsContainer: {
         flexDirection: 'row',
-        flexWrap: 'wrap', // Wrap if buttons are too wide
+        flexWrap: 'wrap', 
         justifyContent: 'space-around',
         marginBottom: 20,
         marginTop: 10,
@@ -905,7 +912,7 @@ const styles = StyleSheet.create({
         paddingVertical: 10,
         paddingHorizontal: 15,
         borderRadius: 6,
-        marginBottom: 8, // Added margin for wrapping
+        marginBottom: 8, 
         minWidth: '22%',
         alignItems: 'center',
     },
