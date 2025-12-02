@@ -75,6 +75,7 @@ export const FakeCallScreen = ({ onEndCall, callerName }) => {
 
   const { contacts } = useEmergencyContacts();
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  // We use a ref to track the currently playing sound to ensure we can always reach it for cleanup
   const soundRef = useRef(null);
   const navigation = useNavigation();
 
@@ -121,97 +122,108 @@ export const FakeCallScreen = ({ onEndCall, callerName }) => {
     }
   }, [keypadInput]);
 
-  // FIX: Stable stopRingtone to avoid race conditions and null errors, and accept ref
-  const stopRingtone = async (ref) => { // Ref is passed in
-    Vibration.cancel(); 
-    const soundToStop = ref.current; // Capture the object locally
-    
-    // Crucial step: Clear the ref *before* async operations to prevent re-entry/double-stop
-    ref.current = null; 
+  // --- MAIN FIX: Robust Audio Logic with Cancellation Check ---
+  useEffect(() => {
+    // 1. isCancelled flag tracks if this specific effect run has been cleaned up.
+    let isCancelled = false;
+    let soundObject = null;
 
-    if (soundToStop) {
-      try {
-        const status = await soundToStop.getStatusAsync();
-        if (status.isLoaded) {
-            // Check if sound is actually playing or loaded before unloading
-            if (status.isPlaying) {
-                await soundToStop.stopAsync();
+    const playIncomingSound = async () => {
+        // If settings aren't loaded yet, don't play default to avoid glitches
+        if (!isRingtoneSettingsLoaded) return;
+
+        try {
+            // Configure audio session
+            await Audio.setAudioModeAsync({ 
+                playsInSilentModeIOS: true, 
+                allowsRecordingIOS: false, 
+                staysActiveInBackground: false, 
+                shouldDuckAndroid: true 
+            });
+            
+            // Create the sound. This is asynchronous and takes time.
+            const { sound } = await Audio.Sound.createAsync(
+                ringtoneSource,
+                { isLooping: true }
+            );
+
+            // 2. CRITICAL CHECK: 
+            // If the user answered, declined, or the component unmounted/remounted 
+            // *while* we were waiting for 'createAsync', isCancelled will be true.
+            if (isCancelled) {
+                // We MUST unload immediately and NOT play.
+                await sound.unloadAsync(); 
+                return;
             }
-            // Always unload to free resources and prevent echo on next play
-            await soundToStop.unloadAsync(); 
+
+            // If we are safe, assign the sound to our refs and play.
+            soundObject = sound;
+            soundRef.current = sound;
+            
+            await sound.playAsync();
+            Vibration.vibrate([400, 1000], true);
+
+        } catch (error) {
+            if (!isCancelled) {
+                console.warn("Could not play ringtone:", error);
+            }
         }
-      } catch (e) {
-        // Log the error but don't halt execution
-        console.warn("Error during sound unload/stop:", e); 
-      }
+    };
+
+    if (callState === 'incoming') {
+        playIncomingSound();
+    } else {
+        // If state is NOT incoming (e.g. answered/ended), we don't start sound.
+        // The cleanup function below handles stopping any existing sound.
     }
-  };
 
-  // Main audio setup function
-  const setupAudioAndVibration = async () => {
-      // 1. Ensure any currently playing audio is STOPPED BEFORE starting a new one (prevents echo)
-      await stopRingtone(soundRef); 
+    // Cleanup function: runs when component unmounts OR when callState/settings change.
+    return () => {
+        isCancelled = true; // Mark this run as cancelled immediately
+        Vibration.cancel();
 
-      try {
-        await Audio.setAudioModeAsync({ playsInSilentModeIOS: true, allowsRecordingIOS: false, staysActiveInBackground: false, shouldDuckAndroid: true });
+        // Stop and unload the sound object created in this effect
+        if (soundObject) {
+            soundObject.stopAsync().catch(() => {});
+            soundObject.unloadAsync().catch(() => {});
+        }
         
-        const { sound } = await Audio.Sound.createAsync(
-          ringtoneSource
-        );
-        
-        soundRef.current = sound;
-        await sound.setIsLoopingAsync(true);
-        await sound.playAsync();
-        Vibration.vibrate([400, 1000], true);
-      } catch (error) {
-        console.warn("Could not play ringtone:", error);
-        stopRingtone(soundRef); 
-      }
-  };
+        // Also ensure global ref is cleared and unloaded if it exists
+        if (soundRef.current) {
+             soundRef.current.unloadAsync().catch(() => {});
+             soundRef.current = null;
+        }
+    };
+  }, [callState, ringtoneSource, isRingtoneSettingsLoaded]); 
 
-  // Main call logic (sound + timer)
+
+  // --- Call Timer Logic ---
   useEffect(() => {
     let interval;
-
     if (callState === 'answered') {
-      // Timer starts immediately after ringtone stop (handled by handleAccept)
       interval = setInterval(() => setTimer(prev => prev + 1), 1000);
-    } else if (callState === 'ended') {
-      // Call ended sequence
-      setTimeout(() => {
-        onEndCall?.();
-        try {
-          navigation.setParams({ triggerFakeCall: false, triggerSudoku: false });
-        } catch (e) {
-          console.warn('Could not reset navigation params', e);
-        }
-      }, 2000);
-    } else if (callState === 'incoming') {
-      // Only attempt to play if settings are loaded
-      if (isRingtoneSettingsLoaded) { 
-          setupAudioAndVibration(); 
+    } 
+    return () => clearInterval(interval);
+  }, [callState]);
+
+  // --- End Call Logic ---
+  useEffect(() => {
+      if (callState === 'ended') {
+        const timerId = setTimeout(() => {
+            onEndCall?.();
+            try {
+            navigation.setParams({ triggerFakeCall: false, triggerSudoku: false });
+            } catch (e) {
+            console.warn('Could not reset navigation params', e);
+            }
+        }, 2000);
+        return () => clearTimeout(timerId);
       }
-    }
+  }, [callState]);
 
-    // Cleanup: This is crucial for stopping the sound when the component unmounts
-    // or when callState changes, ensuring no background audio.
-    return () => {
-      clearInterval(interval);
-      stopRingtone(soundRef); 
-    };
-  }, [callState, ringtoneSource, isRingtoneSettingsLoaded]);
-
-  // FIX: Handle Decline - Await stopRingtone for guaranteed audio stop before state change
-  const handleDecline = async () => { 
-    await stopRingtone(soundRef); 
-    setCallState('ended');
-  };
-
-  // FIX: Handle Accept - Await stopRingtone for guaranteed audio stop before state change
-  const handleAccept = async () => {
-    await stopRingtone(soundRef); 
-    setCallState('answered');
-  };
+  // Handlers - just update state. The useEffect above handles the audio stop automatically.
+  const handleDecline = () => setCallState('ended');
+  const handleAccept = () => setCallState('answered');
 
   const toggleButton = (button) => {
     setActiveButtons(prev => ({ ...prev, [button]: !prev[button] }));
