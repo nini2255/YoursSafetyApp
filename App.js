@@ -148,7 +148,6 @@ function AppContent() {
     registerSafetyNotificationActions();
 
     const subscription = addNotificationActionListener({
-        // Callback for Fake Call
         onFakeCall: () => {
            if (navigationRef.isReady()) {
                navigationRef.navigate('Home');
@@ -157,13 +156,11 @@ function AppContent() {
                }, 100);
            }
         },
-        // Callback for Panic
         onPanic: () => {
             if (navigationRef.isReady()) {
                 navigationRef.navigate('Panic');
             }
         },
-        // Callback for Timer
         onTimer: () => {
              if (navigationRef.isReady()) {
                 navigationRef.navigate('Timer');
@@ -455,13 +452,20 @@ function AppContent() {
 
                 <Stack.Screen
                   name="SecondaryHome"
-                  component={SecondaryHomeScreen}
                   options={{
                     headerShown: false,
                     presentation: 'modal',
                     animation: 'slide_from_bottom',
                   }}
-                />
+                >
+                  {props => (
+                    <SecondaryHomeScreen 
+                      {...props} 
+                      onTriggerFakeCall={() => setFakeCallActive(true)}
+                      onTriggerSudoku={() => setShowSudoku(true)}
+                    />
+                  )}
+                </Stack.Screen>
 
                 <Stack.Screen name="Journal" component={JournalPage} />
                 <Stack.Screen name="Record" component={RecordingPage} />
