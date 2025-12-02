@@ -13,7 +13,9 @@ import {
   Platform,
   Dimensions,
   FlatList,
-  KeyboardAvoidingView
+  KeyboardAvoidingView,
+  BackHandler,
+  ActivityIndicator
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
@@ -22,23 +24,23 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { MoodSelection } from './MoodSelection'; 
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
+const SCREEN_HEIGHT = Dimensions.get('window').height;
 
 const predefinedActivityTags = [
   'family', 'friends', 'date', 'exercise', 'sport', 'relax', 'movies',
   'gaming', 'reading', 'cleaning', 'sleep early', 'eat healthy', 'shopping'
 ];
 
-// --- Custom Calendar Component ---
+// --- Custom Calendar Component (Unchanged) ---
 const CustomCalendar = ({ selectedDate, onSelectDate }) => {
   const [currentMonth, setCurrentMonth] = useState(new Date(selectedDate || Date.now()));
-  const [viewMode, setViewMode] = useState('day'); // 'day', 'month', 'year'
+  const [viewMode, setViewMode] = useState('day'); 
 
   const months = [
     "January", "February", "March", "April", "May", "June",
     "July", "August", "September", "October", "November", "December"
   ];
   
-  // Generate 101 years centered on current year
   const currentYear = new Date().getFullYear();
   const years = Array.from({length: 101}, (_, i) => currentYear - 50 + i);
 
@@ -148,7 +150,6 @@ const CustomCalendar = ({ selectedDate, onSelectDate }) => {
 
   return (
     <View style={styles.calendarContainer}>
-      {/* Header */}
       <View style={styles.calendarHeader}>
         {viewMode === 'day' && (
           <TouchableOpacity onPress={() => changeMonth(-1)} style={styles.monthNavButton}>
@@ -174,7 +175,6 @@ const CustomCalendar = ({ selectedDate, onSelectDate }) => {
         )}
       </View>
 
-      {/* View Switcher */}
       {viewMode !== 'day' && (
         <View style={styles.modeSwitchContainer}>
           <TouchableOpacity 
@@ -192,7 +192,6 @@ const CustomCalendar = ({ selectedDate, onSelectDate }) => {
         </View>
       )}
 
-      {/* Body */}
       <View style={styles.calendarBody}>
         {viewMode === 'day' && (
           <>
@@ -211,14 +210,23 @@ const CustomCalendar = ({ selectedDate, onSelectDate }) => {
   );
 };
 
-export const JournalEntryForm = ({ visible, entry, onClose, onSave, templateData }) => {
+export const JournalEntryForm = ({ visible, entry, onClose, onSave, templateData, initialStep = 0, initialMode = 'edit' }) => {
   const [currentStep, setCurrentStep] = useState(0);
+  const [isReaderMode, setIsReaderMode] = useState(initialMode === 'read');
 
   const [date, setDate] = useState(new Date());
   const [title, setTitle] = useState('');
   const [notes, setNotes] = useState('');
   const [attachments, setAttachments] = useState([]);
   const [recording, setRecording] = useState();
+
+  // Media Preview States
+  const [previewMedia, setPreviewMedia] = useState(null); // { type, uri }
+  
+  // Audio Player States
+  const [audioPlayerVisible, setAudioPlayerVisible] = useState(false);
+  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+  const [currentAudioUri, setCurrentAudioUri] = useState(null);
 
   // Tags
   const [selectedMood, setSelectedMood] = useState(null);
@@ -228,9 +236,38 @@ export const JournalEntryForm = ({ visible, entry, onClose, onSave, templateData
 
   const soundRef = useRef(new Audio.Sound());
 
+  // Handle Hardware Back Button
+  useEffect(() => {
+    const backAction = () => {
+      if (previewMedia) {
+        setPreviewMedia(null);
+        return true;
+      }
+      if (visible) {
+        if (audioPlayerVisible) {
+            closeAudioPlayer(); // Optional: close player on back
+        }
+        onClose();
+        return true;
+      }
+      return false;
+    };
+
+    const backHandler = BackHandler.addEventListener(
+      'hardwareBackPress',
+      backAction
+    );
+
+    return () => backHandler.remove();
+  }, [visible, onClose, previewMedia, audioPlayerVisible]);
+
   useEffect(() => {
     if (visible) {
-      setCurrentStep(0);
+      setCurrentStep(initialStep || 0);
+      setIsReaderMode(initialMode === 'read');
+      setPreviewMedia(null);
+      setAudioPlayerVisible(false);
+
       if (entry) {
         setDate(entry.date ? new Date(entry.date) : new Date());
         setTitle(entry.title || '');
@@ -258,7 +295,7 @@ export const JournalEntryForm = ({ visible, entry, onClose, onSave, templateData
         setCustomTagInput('');
       }
     }
-  }, [entry, templateData, visible]);
+  }, [entry, templateData, visible, initialStep, initialMode]);
 
   useEffect(() => {
     return () => {
@@ -283,7 +320,58 @@ export const JournalEntryForm = ({ visible, entry, onClose, onSave, templateData
     onClose(); 
   };
 
-  // --- Media Handlers ---
+  // --- Media Logic ---
+  
+  const handleAttachmentPress = (att) => {
+    if (!isReaderMode) return; // Only preview in reader mode (or you can allow in edit too)
+
+    if (att.type === 'image' || att.type === 'video') {
+        setPreviewMedia(att);
+    } else if (att.type === 'audio') {
+        initAudioPlayer(att.uri);
+    }
+  };
+
+  const initAudioPlayer = async (uri) => {
+      try {
+          if (currentAudioUri !== uri) {
+            await soundRef.current.unloadAsync();
+            await soundRef.current.loadAsync({ uri });
+            setCurrentAudioUri(uri);
+          }
+          setAudioPlayerVisible(true);
+          await soundRef.current.playAsync();
+          setIsPlayingAudio(true);
+          
+          soundRef.current.setOnPlaybackStatusUpdate((status) => {
+              if (status.didJustFinish) {
+                  setIsPlayingAudio(false);
+                  soundRef.current.setPositionAsync(0);
+              }
+          });
+      } catch (error) {
+          console.error("Audio Play Error", error);
+          Alert.alert("Error", "Could not play audio.");
+      }
+  };
+
+  const toggleAudioPlayPause = async () => {
+      if (isPlayingAudio) {
+          await soundRef.current.pauseAsync();
+          setIsPlayingAudio(false);
+      } else {
+          await soundRef.current.playAsync();
+          setIsPlayingAudio(true);
+      }
+  };
+
+  const closeAudioPlayer = async () => {
+      await soundRef.current.unloadAsync();
+      setAudioPlayerVisible(false);
+      setIsPlayingAudio(false);
+      setCurrentAudioUri(null);
+  };
+
   const handlePickMedia = async (mediaType) => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
@@ -302,7 +390,6 @@ export const JournalEntryForm = ({ visible, entry, onClose, onSave, templateData
     }
   };
 
-  // Upload Audio File
   const handlePickAudio = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
@@ -361,7 +448,8 @@ export const JournalEntryForm = ({ visible, entry, onClose, onSave, templateData
     }
   };
 
-  const playSound = async (uri) => {
+  // Simple play for edit mode (no mini player)
+  const playSoundEditMode = async (uri) => {
     try {
       await Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true });
       await soundRef.current.unloadAsync(); 
@@ -377,28 +465,51 @@ export const JournalEntryForm = ({ visible, entry, onClose, onSave, templateData
       await FileSystem.deleteAsync(uri, { idempotent: true });
       setAttachments(prev => prev.filter(att => att.uri !== uri));
     } catch (err) {
-      setAttachments(prev => prev.filter(att => att.uri !== uri));
+      setAttachments(prev => prev.filter(att => prev.filter(att => att.uri !== uri)));
     }
   };
 
-  const renderAttachments = () => {
+  const renderAttachments = (readonly = false) => {
     return attachments.map((att, index) => (
       <View key={index} style={styles.attachmentPreviewContainer}>
-        {att.type === 'image' && <Image source={{ uri: att.uri }} style={styles.previewImage} resizeMode="cover" />}
-        {att.type === 'video' && <Video source={{ uri: att.uri }} style={styles.previewVideo} useNativeControls resizeMode="contain" />}
-        {att.type === 'audio' && (
-          <TouchableOpacity style={styles.audioButton} onPress={() => playSound(att.uri)}>
-            <Text style={styles.audioButtonText}>Play Audio: {att.uri.split('/').pop()}</Text>
+        <TouchableOpacity 
+            activeOpacity={readonly ? 0.8 : 1}
+            onPress={() => readonly ? handleAttachmentPress(att) : null}
+            style={{width: '100%'}}
+        >
+            {att.type === 'image' && (
+                <Image source={{ uri: att.uri }} style={styles.previewImage} resizeMode="cover" />
+            )}
+            {att.type === 'video' && (
+                <View pointerEvents="none">
+                    <Video source={{ uri: att.uri }} style={styles.previewVideo} resizeMode="cover" />
+                    <View style={styles.videoOverlayIcon}>
+                        <Text style={{fontSize: 30}}>▶️</Text>
+                    </View>
+                </View>
+            )}
+            {att.type === 'audio' && (
+                readonly ? (
+                    <View style={styles.audioPlaceholder}>
+                        <Text style={styles.audioPlaceholderText}>▶️ Tap to listen to Audio</Text>
+                    </View>
+                ) : (
+                    <TouchableOpacity style={styles.audioButton} onPress={() => playSoundEditMode(att.uri)}>
+                        <Text style={styles.audioButtonText}>Play Audio: {att.uri.split('/').pop()}</Text>
+                    </TouchableOpacity>
+                )
+            )}
+        </TouchableOpacity>
+
+        {!readonly && (
+          <TouchableOpacity onPress={() => removeAttachment(att.uri)} style={styles.removeAttButton}>
+             <Text style={styles.removeAttButtonText}>X</Text>
           </TouchableOpacity>
         )}
-        <TouchableOpacity onPress={() => removeAttachment(att.uri)} style={styles.removeAttButton}>
-           <Text style={styles.removeAttButtonText}>X</Text>
-        </TouchableOpacity>
       </View>
     ));
   };
 
-  // --- Step Navigation ---
   const goNext = () => {
     if (currentStep < 3) setCurrentStep(currentStep + 1);
   };
@@ -406,7 +517,6 @@ export const JournalEntryForm = ({ visible, entry, onClose, onSave, templateData
     if (currentStep > 0) setCurrentStep(currentStep - 1);
   };
 
-  // --- Tag Helpers ---
   const toggleActivityTag = (tag) => {
     setSelectedActivityTags(prev => 
       prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
@@ -420,26 +530,23 @@ export const JournalEntryForm = ({ visible, entry, onClose, onSave, templateData
     }
   };
 
-  // --- Render Steps (Containers managed individually) ---
+  // --- Render Steps ---
 
-  // Step 1: Calendar (Uses View, avoids ScrollView conflict with List)
   const renderStepWhen = () => (
-    <View style={[styles.stepContainer, { flex: 1 }]}>
+    <View style={[styles.stepContainer, { flex: 1, paddingHorizontal: 20 }]}>
       <Text style={styles.stepTitle}>When did this happen?</Text>
-      <Text style={styles.stepSubtitle}>Tap the month or year to jump</Text>
       <CustomCalendar selectedDate={date} onSelectDate={setDate} />
       <View style={styles.dateDisplay}>
         <Text style={styles.dateDisplayText}>
-          Selected: {date.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+          {date.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
         </Text>
       </View>
     </View>
   );
 
-  // Step 2: Location (Uses ScrollView)
   const renderStepWhere = () => (
     <ScrollView style={styles.scrollContent} keyboardShouldPersistTaps="handled">
-        <View style={styles.stepContainer}>
+        <View style={[styles.stepContainer, { paddingHorizontal: 20 }]}>
         <Text style={styles.stepTitle}>Where were you?</Text>
         <TextInput
             style={styles.input}
@@ -454,10 +561,9 @@ export const JournalEntryForm = ({ visible, entry, onClose, onSave, templateData
     </ScrollView>
   );
 
-  // Step 3: Tags (Uses ScrollView)
   const renderStepWhoWhat = () => (
     <ScrollView style={styles.scrollContent} keyboardShouldPersistTaps="handled">
-        <View style={styles.stepContainer}>
+        <View style={[styles.stepContainer, { paddingHorizontal: 20 }]}>
         <Text style={styles.stepTitle}>How are you feeling?</Text>
         <MoodSelection selectedMood={selectedMood} onSelectMood={setSelectedMood} />
         
@@ -491,95 +597,172 @@ export const JournalEntryForm = ({ visible, entry, onClose, onSave, templateData
     </ScrollView>
   );
 
-  // Step 4: Journal (Uses ScrollView with flexGrow for full screen writing)
   const renderStepJournal = () => (
-    <View style={[styles.stepContainer, { flex: 1, paddingBottom: 0 }]}>
-      <Text style={styles.stepTitle}>Write your entry</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Title (Required)"
-        placeholderTextColor="#9CA3AF"
-        value={title}
-        onChangeText={setTitle}
-        maxLength={100}
-      />
-      {/* Full Screen Text Input */}
-      <TextInput
-        style={[styles.input, styles.fullScreenInput]} 
-        placeholder="Start writing..."
-        placeholderTextColor="#9CA3AF"
-        value={notes}
-        onChangeText={setNotes}
-        multiline={true}
-        textAlignVertical="top"
-      />
-      
-      <View style={styles.mediaButtonsContainer}>
-        <TouchableOpacity style={styles.mediaButton} onPress={() => handlePickMedia('image')}>
-          <Text style={styles.mediaButtonText}>Image</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.mediaButton} onPress={() => handlePickMedia('video')}>
-          <Text style={styles.mediaButtonText}>Video</Text>
-        </TouchableOpacity>
-        
-        {/* New Upload Audio Button */}
-        <TouchableOpacity style={styles.mediaButton} onPress={handlePickAudio}>
-          <Text style={styles.mediaButtonText}>Upload Audio</Text>
-        </TouchableOpacity>
+    <View style={{ flex: 1 }}>
+      <ScrollView 
+        style={styles.scrollContent} 
+        contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 20, paddingBottom: 100 }}
+        keyboardShouldPersistTaps="handled"
+      >
+        <Text style={styles.minimalDateText}>
+          {date.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
+        </Text>
 
-        <TouchableOpacity style={styles.mediaButton} onPress={recording ? stopRecording : startRecording}>
-          <Text style={styles.mediaButtonText}>{recording ? 'Stop Rec' : 'Rec Audio'}</Text>
-        </TouchableOpacity>
-      </View>
-      
-      <View style={styles.attachmentList}>
-        {renderAttachments()}
-      </View>
+        {isReaderMode ? (
+          <>
+            <Text style={styles.readerTitle}>{title}</Text>
+            <Text style={styles.readerBody}>{notes}</Text>
+          </>
+        ) : (
+          <>
+            <TextInput
+              style={styles.minimalTitleInput}
+              placeholder="Title"
+              placeholderTextColor="#D1D5DB"
+              value={title}
+              onChangeText={setTitle}
+              maxLength={100}
+              returnKeyType="next"
+            />
+            
+            <TextInput
+              style={styles.minimalBodyInput} 
+              placeholder="Start writing..."
+              placeholderTextColor="#D1D5DB"
+              value={notes}
+              onChangeText={setNotes}
+              multiline={true}
+              textAlignVertical="top"
+              scrollEnabled={false}
+              autoFocus={!isReaderMode && currentStep === 3}
+            />
+          </>
+        )}
+        
+        <View style={styles.attachmentList}>
+          {renderAttachments(isReaderMode)}
+        </View>
+      </ScrollView>
+
+      {!isReaderMode && (
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
+        >
+          <View style={styles.minimalToolbar}>
+            <TouchableOpacity style={styles.toolbarButton} onPress={() => handlePickMedia('image')}>
+              <Text style={styles.toolbarButtonText}>Image</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.toolbarButton} onPress={() => handlePickMedia('video')}>
+              <Text style={styles.toolbarButtonText}>Video</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.toolbarButton} onPress={handlePickAudio}>
+              <Text style={styles.toolbarButtonText}>Audio</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.toolbarButton, recording && styles.recordingButton]} 
+              onPress={recording ? stopRecording : startRecording}
+            >
+              <Text style={[styles.toolbarButtonText, recording && {color: 'white'}]}>
+                {recording ? 'Stop' : 'Rec'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
+      )}
+
+      {/* Mini Audio Player Overlay */}
+      {audioPlayerVisible && (
+          <View style={styles.miniPlayerContainer}>
+              <View style={styles.miniPlayerContent}>
+                  <Text style={styles.miniPlayerTitle}>Audio Playing</Text>
+                  <TouchableOpacity onPress={toggleAudioPlayPause} style={styles.miniPlayerControl}>
+                      <Text style={styles.miniPlayerControlText}>{isPlayingAudio ? '⏸ Pause' : '▶️ Play'}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={closeAudioPlayer} style={styles.miniPlayerClose}>
+                      <Text style={styles.miniPlayerCloseText}>Close</Text>
+                  </TouchableOpacity>
+              </View>
+          </View>
+      )}
     </View>
   );
 
   const steps = [renderStepWhen, renderStepWhere, renderStepWhoWhat, renderStepJournal];
 
   return (
-    <Modal visible={visible} animationType="slide">
+    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <SafeAreaView style={styles.fullScreenContainer}>
-        {/* Header */}
         <View style={styles.headerBar}>
           <TouchableOpacity onPress={onClose} style={styles.headerButton}>
             <Text style={styles.headerButtonText}>Cancel</Text>
           </TouchableOpacity>
-          <Text style={styles.progressText}>Step {currentStep + 1} of 4</Text>
-          <View style={styles.headerButton} /> 
+          
+          {currentStep === 3 ? (
+             <Text style={styles.progressText}>Entry</Text>
+          ) : (
+             <Text style={styles.progressText}>Step {currentStep + 1} of 4</Text>
+          )}
+          
+          <View style={styles.headerButton}>
+            {currentStep === 3 ? (
+              isReaderMode ? (
+                <TouchableOpacity onPress={() => setIsReaderMode(false)}>
+                   <Text style={[styles.headerButtonText, {color: '#F472B6', fontWeight: '600'}]}>Edit</Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity onPress={handleSave}>
+                   <Text style={[styles.headerButtonText, {color: '#10B981', fontWeight: 'bold'}]}>Save</Text>
+                </TouchableOpacity>
+              )
+            ) : null}
+          </View>
         </View>
 
-        {/* Content - No wrapper ScrollView here to prevent nesting errors */}
         <View style={{flex: 1}}>
             {steps[currentStep]()}
         </View>
 
-        {/* Footer Actions */}
-        <KeyboardAvoidingView 
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-            keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
-        >
-            <View style={styles.formActions}>
-            {currentStep > 0 ? (
-                <TouchableOpacity style={styles.navButtonSecondary} onPress={goBack}>
-                <Text style={styles.navButtonTextSecondary}>Back</Text>
-                </TouchableOpacity>
-            ) : <View />}
+        {currentStep !== 3 && (
+          <KeyboardAvoidingView 
+              behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+              keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
+          >
+              <View style={styles.formActions}>
+              {currentStep > 0 ? (
+                  <TouchableOpacity style={styles.navButtonSecondary} onPress={goBack}>
+                  <Text style={styles.navButtonTextSecondary}>Back</Text>
+                  </TouchableOpacity>
+              ) : <View />}
 
-            {currentStep < 3 ? (
-                <TouchableOpacity style={styles.navButtonPrimary} onPress={goNext}>
-                <Text style={styles.navButtonTextPrimary}>Next</Text>
+              {currentStep < 3 ? (
+                  <TouchableOpacity style={styles.navButtonPrimary} onPress={goNext}>
+                  <Text style={styles.navButtonTextPrimary}>Next</Text>
+                  </TouchableOpacity>
+              ) : (
+                  <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
+                  <Text style={styles.saveButtonText}>Save Entry</Text>
+                  </TouchableOpacity>
+              )}
+              </View>
+          </KeyboardAvoidingView>
+        )}
+
+        {/* Full Screen Media Modal */}
+        <Modal visible={!!previewMedia} transparent={true} animationType="fade" onRequestClose={() => setPreviewMedia(null)}>
+            <View style={styles.fullScreenMediaContainer}>
+                <TouchableOpacity style={styles.fullScreenCloseButton} onPress={() => setPreviewMedia(null)}>
+                    <Text style={styles.fullScreenCloseText}>✕</Text>
                 </TouchableOpacity>
-            ) : (
-                <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-                <Text style={styles.saveButtonText}>Save Entry</Text>
-                </TouchableOpacity>
-            )}
+                {previewMedia?.type === 'image' && (
+                    <Image source={{ uri: previewMedia.uri }} style={styles.fullScreenImage} resizeMode="contain" />
+                )}
+                {previewMedia?.type === 'video' && (
+                    <Video source={{ uri: previewMedia.uri }} style={styles.fullScreenVideo} useNativeControls resizeMode="contain" shouldPlay />
+                )}
             </View>
-        </KeyboardAvoidingView>
+        </Modal>
+
       </SafeAreaView>
     </Modal>
   );
@@ -598,11 +781,12 @@ const styles = StyleSheet.create({
       paddingHorizontal: 20,
       paddingVertical: 15,
       borderBottomWidth: 1,
-      borderBottomColor: '#E5E7EB',
+      borderBottomColor: '#F3F4F6', 
     },
     headerButton: {
       padding: 5,
       minWidth: 60,
+      alignItems: 'flex-end', 
     },
     headerButtonText: {
       color: '#6B7280',
@@ -613,18 +797,12 @@ const styles = StyleSheet.create({
       fontWeight: '600',
       color: '#374151',
     },
-    // Main scrolling container styles for individual steps
     scrollContent: {
         flex: 1,
     },
-    scrollContentContainer: {
-        flexGrow: 1,
-        paddingHorizontal: 20,
-    },
     stepContainer: {
       marginTop: 20,
-      paddingBottom: 40,
-      paddingHorizontal: 20, // Added padding here since parent ScrollView no longer has it
+      paddingBottom: 20,
     },
     stepTitle: {
       fontSize: 24,
@@ -633,28 +811,207 @@ const styles = StyleSheet.create({
       marginBottom: 8,
       textAlign: 'center',
     },
-    stepSubtitle: {
-      fontSize: 16,
-      color: '#6B7280',
-      textAlign: 'center',
-      marginBottom: 24,
+    // --- Clean Minimal Styles for Writing ---
+    minimalDateText: {
+      fontSize: 13,
+      color: '#9CA3AF',
+      fontWeight: '600',
+      marginBottom: 10,
+      marginTop: 20,
+      textTransform: 'uppercase',
+      letterSpacing: 1,
     },
-    input: {
-      borderWidth: 1,
-      borderColor: '#D1D5DB',
-      padding: 16,
-      borderRadius: 12,
-      fontSize: 18,
+    minimalTitleInput: {
+      fontSize: 28,
+      fontWeight: 'bold',
       color: '#1F2937',
-      backgroundColor: '#F9FAFB',
-      marginTop: 10,
+      marginBottom: 16,
+      padding: 0,
+      backgroundColor: 'transparent',
     },
-    fullScreenInput: {
-      flex: 1, 
-      minHeight: 250,
+    minimalBodyInput: {
+      fontSize: 18,
+      color: '#374151',
+      lineHeight: 28,
+      padding: 0,
       textAlignVertical: 'top',
+      backgroundColor: 'transparent',
+      minHeight: 300, 
+      marginBottom: 20, 
+    },
+    readerTitle: {
+      fontSize: 28,
+      fontWeight: 'bold',
+      color: '#1F2937',
+      marginBottom: 16,
+    },
+    readerBody: {
+      fontSize: 18,
+      color: '#374151',
+      lineHeight: 28,
       marginBottom: 20,
     },
+    minimalToolbar: {
+      flexDirection: 'row',
+      paddingVertical: 12,
+      borderTopWidth: 1,
+      borderTopColor: '#F3F4F6',
+      justifyContent: 'flex-start',
+      backgroundColor: 'white',
+      paddingHorizontal: 20,
+    },
+    toolbarButton: {
+      marginRight: 10,
+      paddingVertical: 8,
+      paddingHorizontal: 14,
+      backgroundColor: '#F3F4F6',
+      borderRadius: 20, 
+    },
+    recordingButton: {
+      backgroundColor: '#EF4444',
+    },
+    toolbarButtonText: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: '#4B5563',
+    },
+    // Attachment Styles
+    attachmentList: {
+        marginBottom: 16,
+    },
+    attachmentPreviewContainer: {
+        position: 'relative',
+        marginBottom: 16,
+        borderRadius: 8,
+        overflow: 'hidden',
+        backgroundColor: '#000',
+    },
+    previewImage: {
+        width: '100%',
+        height: 250,
+    },
+    previewVideo: {
+        width: '100%',
+        height: 250,
+    },
+    videoOverlayIcon: {
+        position: 'absolute',
+        top: 0, left: 0, right: 0, bottom: 0,
+        justifyContent: 'center', alignItems: 'center',
+        backgroundColor: 'rgba(0,0,0,0.3)'
+    },
+    audioButton: {
+        backgroundColor: '#F472B6',
+        padding: 16,
+        borderRadius: 8,
+        alignItems: 'center',
+    },
+    audioButtonText: {
+        color: 'white',
+        fontWeight: 'bold',
+        fontSize: 14,
+    },
+    audioPlaceholder: {
+        backgroundColor: '#F3F4F6',
+        padding: 20,
+        borderRadius: 8,
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: '#E5E7EB'
+    },
+    audioPlaceholderText: {
+        color: '#374151',
+        fontWeight: '600',
+        fontSize: 16
+    },
+    removeAttButton: {
+        position: 'absolute',
+        top: 8,
+        right: 8,
+        backgroundColor: 'rgba(0,0,0,0.6)',
+        width: 30,
+        height: 30,
+        borderRadius: 15,
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 10,
+    },
+    removeAttButtonText: {
+        color: 'white',
+        fontWeight: 'bold',
+        fontSize: 16,
+    },
+    
+    // Mini Player
+    miniPlayerContainer: {
+        position: 'absolute',
+        bottom: 20,
+        left: 20,
+        right: 20,
+        backgroundColor: '#1F2937',
+        borderRadius: 12,
+        padding: 16,
+        elevation: 5,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 3.84,
+    },
+    miniPlayerContent: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+    },
+    miniPlayerTitle: {
+        color: 'white',
+        fontWeight: 'bold',
+        flex: 1,
+    },
+    miniPlayerControl: {
+        paddingHorizontal: 15,
+    },
+    miniPlayerControlText: {
+        color: '#F472B6',
+        fontWeight: 'bold',
+        fontSize: 16,
+    },
+    miniPlayerClose: {
+        paddingLeft: 10,
+    },
+    miniPlayerCloseText: {
+        color: '#9CA3AF',
+        fontSize: 12,
+    },
+
+    // Full Screen Media
+    fullScreenMediaContainer: {
+        flex: 1,
+        backgroundColor: 'black',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    fullScreenCloseButton: {
+        position: 'absolute',
+        top: 40,
+        right: 20,
+        padding: 10,
+        zIndex: 20,
+    },
+    fullScreenCloseText: {
+        color: 'white',
+        fontSize: 30,
+        fontWeight: 'bold',
+    },
+    fullScreenImage: {
+        width: '100%',
+        height: '100%',
+    },
+    fullScreenVideo: {
+        width: '100%',
+        height: '100%',
+    },
+
+    // Form Action Buttons (Previous steps)
     formActions: {
       flexDirection: 'row',
       justifyContent: 'space-between',
@@ -696,8 +1053,17 @@ const styles = StyleSheet.create({
       fontSize: 18,
       fontWeight: 'bold',
     },
-
-    // --- CALENDAR STYLES ---
+    input: {
+      borderWidth: 1,
+      borderColor: '#D1D5DB',
+      padding: 16,
+      borderRadius: 12,
+      fontSize: 18,
+      color: '#1F2937',
+      backgroundColor: '#F9FAFB',
+      marginTop: 10,
+    },
+    // Calendar styles reused from previous
     calendarContainer: {
       backgroundColor: '#fff',
       borderRadius: 12,
@@ -705,7 +1071,7 @@ const styles = StyleSheet.create({
       borderWidth: 1,
       borderColor: '#E5E7EB',
       minHeight: 400, 
-      flex: 1, // Allow calendar to grow
+      flex: 1,
     },
     calendarHeader: {
       flexDirection: 'row',
@@ -815,7 +1181,7 @@ const styles = StyleSheet.create({
       paddingBottom: 20,
     },
     selectionItem: {
-      width: '22%', // Adjusted for 4 columns
+      width: '22%', 
       paddingVertical: 12,
       marginVertical: 5,
       backgroundColor: '#F9FAFB',
@@ -843,8 +1209,6 @@ const styles = StyleSheet.create({
       color: '#F472B6',
       fontWeight: 'bold',
     },
-
-    // --- OTHER STYLES ---
     tagsContainer: {
       flexDirection: 'row',
       flexWrap: 'wrap',
@@ -899,72 +1263,5 @@ const styles = StyleSheet.create({
       fontSize: 24,
       fontWeight: 'bold',
       marginTop: -2,
-    },
-    mediaButtonsContainer: {
-        flexDirection: 'row',
-        flexWrap: 'wrap', 
-        justifyContent: 'space-around',
-        marginBottom: 20,
-        marginTop: 10,
-    },
-    mediaButton: {
-        backgroundColor: '#E5E7EB',
-        paddingVertical: 10,
-        paddingHorizontal: 15,
-        borderRadius: 6,
-        marginBottom: 8, 
-        minWidth: '22%',
-        alignItems: 'center',
-    },
-    mediaButtonText: {
-        color: '#1F2937',
-        fontWeight: '600',
-        fontSize: 12,
-    },
-    attachmentList: {
-        marginBottom: 16,
-    },
-    attachmentPreviewContainer: {
-        position: 'relative',
-        marginBottom: 16,
-        borderRadius: 8,
-        overflow: 'hidden',
-        backgroundColor: '#000',
-    },
-    previewImage: {
-        width: '100%',
-        height: 250,
-    },
-    previewVideo: {
-        width: '100%',
-        height: 250,
-    },
-    audioButton: {
-        backgroundColor: '#F472B6',
-        padding: 16,
-        borderRadius: 8,
-        alignItems: 'center',
-    },
-    audioButtonText: {
-        color: 'white',
-        fontWeight: 'bold',
-        fontSize: 14,
-    },
-    removeAttButton: {
-        position: 'absolute',
-        top: 8,
-        right: 8,
-        backgroundColor: 'rgba(0,0,0,0.6)',
-        width: 30,
-        height: 30,
-        borderRadius: 15,
-        justifyContent: 'center',
-        alignItems: 'center',
-        zIndex: 10,
-    },
-    removeAttButtonText: {
-        color: 'white',
-        fontWeight: 'bold',
-        fontSize: 16,
     },
 });

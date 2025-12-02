@@ -1,5 +1,3 @@
-// rafaelanunez/yoursapp/yoursApp-main/screens/JournalPage.js
-
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   View,
@@ -8,15 +6,188 @@ import {
   TouchableOpacity,
   StyleSheet,
   Alert,
-  Image
+  Image,
+  TextInput,
+  LayoutAnimation,
+  Platform,
+  UIManager,
+  Dimensions,
+  FlatList,
+  Modal,
+  Share,
+  Linking
 } from 'react-native';
 import { useJournal } from '../context/JournalContext';
+import { useEmergencyContacts } from '../context/EmergencyContactsContext'; // Import Emergency Contacts
 import { PageHeader } from '../components/PageHeader';
 import { JournalTemplateModal } from '../components/JournalTemplateModal';
 import { JournalEntryForm } from '../components/JournalEntryForm';
 import { IncidentReportForm } from '../components/IncidentReportForm';
 import { JournalIcon, EditIcon, DeleteIcon } from '../components/Icons';
 import { Video, Audio } from 'expo-av';
+
+// Enable LayoutAnimation for Android
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
+const SCREEN_WIDTH = Dimensions.get('window').width;
+
+// --- Stats Calendar Component ---
+const JournalCalendar = ({ entries, onSelectDate }) => {
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+  
+  // Calculate entry counts per day
+  const entryCounts = useMemo(() => {
+    const counts = {};
+    entries.forEach(e => {
+        const dateStr = new Date(e.date).toDateString();
+        counts[dateStr] = (counts[dateStr] || 0) + 1;
+    });
+    return counts;
+  }, [entries]);
+
+  const daysInMonth = (month, year) => new Date(year, month + 1, 0).getDate();
+  const firstDayOfMonth = (month, year) => new Date(year, month, 1).getDay();
+
+  const changeMonth = (increment) => {
+    const newMonth = new Date(currentMonth);
+    newMonth.setMonth(newMonth.getMonth() + increment);
+    setCurrentMonth(newMonth);
+  };
+
+  const renderDays = () => {
+    const days = [];
+    const year = currentMonth.getFullYear();
+    const month = currentMonth.getMonth();
+    const totalDays = daysInMonth(month, year);
+    const startDay = firstDayOfMonth(month, year);
+
+    for (let i = 0; i < startDay; i++) {
+      days.push(<View key={`empty-${i}`} style={calendarStyles.calendarDay} />);
+    }
+
+    for (let i = 1; i <= totalDays; i++) {
+      const date = new Date(year, month, i);
+      const dateStr = date.toDateString();
+      const count = entryCounts[dateStr] || 0;
+      const isToday = dateStr === new Date().toDateString();
+
+      days.push(
+        <TouchableOpacity 
+          key={i} 
+          style={[
+            calendarStyles.calendarDay, 
+            isToday && calendarStyles.calendarDayToday,
+            count > 0 && calendarStyles.calendarDayHasEntry
+          ]} 
+          onPress={() => onSelectDate(date)} 
+        >
+          <Text style={[
+            calendarStyles.calendarDayText, 
+            isToday && calendarStyles.calendarDayTextToday,
+            count > 0 && calendarStyles.calendarDayTextHasEntry
+          ]}>{i}</Text>
+          
+          {count > 0 && (
+              <View style={calendarStyles.countBadge}>
+                  <Text style={calendarStyles.countText}>{count}</Text>
+              </View>
+          )}
+        </TouchableOpacity>
+      );
+    }
+    return <View style={calendarStyles.daysGrid}>{days}</View>;
+  };
+
+  return (
+    <View style={calendarStyles.container}>
+      <View style={calendarStyles.header}>
+        <TouchableOpacity onPress={() => changeMonth(-1)} style={calendarStyles.navButton}>
+            <Text style={calendarStyles.navText}>{'<'}</Text>
+        </TouchableOpacity>
+        <Text style={calendarStyles.monthTitle}>
+            {currentMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}
+        </Text>
+        <TouchableOpacity onPress={() => changeMonth(1)} style={calendarStyles.navButton}>
+            <Text style={calendarStyles.navText}>{'>'}</Text>
+        </TouchableOpacity>
+      </View>
+      <View style={calendarStyles.weekRow}>
+          {['S','M','T','W','T','F','S'].map((d, index) => (
+            <Text key={index} style={calendarStyles.weekText}>{d}</Text>
+          ))}
+      </View>
+      {renderDays()}
+    </View>
+  );
+};
+
+const calendarStyles = StyleSheet.create({
+    container: {
+        backgroundColor: 'white',
+        marginHorizontal: 20,
+        borderRadius: 12,
+        padding: 10,
+        marginBottom: 10,
+        elevation: 2,
+        shadowColor: '#000',
+        shadowOpacity: 0.05,
+        shadowRadius: 2,
+        shadowOffset: {width:0, height: 2}
+    },
+    header: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 10,
+    },
+    navButton: { padding: 5 },
+    navText: { fontSize: 18, color: '#F472B6', fontWeight: 'bold' },
+    monthTitle: { fontSize: 16, fontWeight: 'bold', color: '#374151' },
+    weekRow: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 5 },
+    weekText: { color: '#9CA3AF', fontSize: 12, width: (SCREEN_WIDTH - 60)/7, textAlign: 'center' },
+    daysGrid: { flexDirection: 'row', flexWrap: 'wrap' },
+    calendarDay: {
+        width: (SCREEN_WIDTH - 60) / 7,
+        height: 40,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 4,
+        borderRadius: 8,
+    },
+    calendarDayToday: { borderWidth: 1, borderColor: '#F472B6' },
+    calendarDayHasEntry: { backgroundColor: '#FDF2F8' }, // Light pink bg
+    calendarDayText: { fontSize: 14, color: '#374151' },
+    calendarDayTextToday: { color: '#F472B6', fontWeight: 'bold' },
+    calendarDayTextHasEntry: { fontWeight: '600' },
+    countBadge: {
+        position: 'absolute',
+        bottom: 2,
+        right: 2,
+        backgroundColor: '#F472B6',
+        borderRadius: 5,
+        width: 12,
+        height: 12,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    countText: { color: 'white', fontSize: 8, fontWeight: 'bold' }
+});
+
+// --- Icons ---
+const MaximizeIcon = () => (
+    <View style={{width: 24, height: 24, borderWidth: 2, borderColor: '#4B5563', borderRadius: 4, justifyContent: 'center', alignItems: 'center'}}>
+        <View style={{width: 8, height: 8, borderWidth: 1, borderColor: '#4B5563'}} />
+    </View>
+);
+
+const ShareIcon = () => (
+    <View style={{width: 24, height: 24, justifyContent: 'center', alignItems: 'center'}}>
+        {/* Simple Share Icon Representation */}
+        <Text style={{fontSize: 18, color: '#4B5563', marginTop: -2}}>📤</Text>
+    </View>
+);
 
 const getMoodEmoji = (moodKey) => {
   const moodMap = {
@@ -31,14 +202,30 @@ const getMoodEmoji = (moodKey) => {
 
 export const JournalPage = ({ navigation }) => {
   const { entries, isLoading, addEntry, updateEntry, deleteEntry } = useJournal();
+  const { contacts: emergencyContacts } = useEmergencyContacts(); // Get contacts
+  
+  // UI State
+  const [searchQuery, setSearchQuery] = useState('');
+  const [collapsedSections, setCollapsedSections] = useState([]);
+  const [isCalendarVisible, setIsCalendarVisible] = useState(false);
+
+  // Modal & Form State
   const [formVisible, setFormVisible] = useState(false);
   const [incidentFormVisible, setIncidentFormVisible] = useState(false);
   const [templateModalVisible, setTemplateModalVisible] = useState(false);
   const [editingEntry, setEditingEntry] = useState(null);
   const [templateData, setTemplateData] = useState(null);
   
+  // Share State
+  const [shareModalVisible, setShareModalVisible] = useState(false);
+  const [entryToShare, setEntryToShare] = useState(null);
+  
+  const [initialFormStep, setInitialFormStep] = useState(0);
+  const [initialFormMode, setInitialFormMode] = useState('edit');
+
   const [expandedEntryId, setExpandedEntryId] = useState(null);
   const soundRef = useRef(new Audio.Sound());
+  const lastTap = useRef(null);
 
   useEffect(() => {
     return () => {
@@ -46,10 +233,21 @@ export const JournalPage = ({ navigation }) => {
     };
   }, []);
 
+  // Filter entries based on search
+  const filteredEntries = useMemo(() => {
+      if (!searchQuery.trim()) return entries;
+      const lowerQuery = searchQuery.toLowerCase();
+      return entries.filter(e => 
+        (e.title && e.title.toLowerCase().includes(lowerQuery)) ||
+        (e.notes && e.notes.toLowerCase().includes(lowerQuery)) ||
+        (e.location && e.location.toLowerCase().includes(lowerQuery))
+      );
+  }, [entries, searchQuery]);
+
   const groupedEntries = useMemo(() => {
-    if (isLoading || entries.length === 0) return [];
+    if (isLoading || filteredEntries.length === 0) return [];
     
-    const sortedEntries = [...entries].sort((a, b) => new Date(b.date) - new Date(a.date));
+    const sortedEntries = [...filteredEntries].sort((a, b) => new Date(b.date) - new Date(a.date));
 
     const groups = sortedEntries.reduce((acc, entry) => {
       const date = new Date(entry.date).toLocaleDateString(undefined, {
@@ -64,17 +262,76 @@ export const JournalPage = ({ navigation }) => {
 
     return Object.keys(groups).map(date => ({
       title: date,
-      data: groups[date]
+      data: collapsedSections.includes(date) ? [] : groups[date] 
     }));
-  }, [entries, isLoading]);
+  }, [filteredEntries, isLoading, collapsedSections]);
+
+  const toggleSection = (sectionTitle) => {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      setCollapsedSections(prev => 
+        prev.includes(sectionTitle) 
+            ? prev.filter(t => t !== sectionTitle)
+            : [...prev, sectionTitle]
+      );
+  };
+
+  // --- Sharing Logic ---
+  
+  const handleShareButtonPress = (item) => {
+      setEntryToShare(item);
+      setShareModalVisible(true);
+  };
+
+  const getShareMessage = (entry) => {
+      let message = `Journal Entry: ${entry.title}\nDate: ${new Date(entry.date).toLocaleDateString()}\n\n`;
+      if (entry.notes) message += entry.notes;
+      if (entry.description) message += entry.description; // For incident reports
+      return message;
+  };
+
+  const shareViaSMS = async (contact) => {
+      const message = getShareMessage(entryToShare);
+      const separator = Platform.OS === 'ios' ? '&' : '?';
+      const url = `sms:${contact.phone}${separator}body=${encodeURIComponent(message)}`;
+      
+      try {
+          const supported = await Linking.canOpenURL(url);
+          if (supported) {
+              await Linking.openURL(url);
+              setShareModalVisible(false);
+          } else {
+              Alert.alert('Error', 'SMS is not supported on this device.');
+          }
+      } catch (err) {
+          console.error(err);
+          Alert.alert('Error', 'Could not open messaging app.');
+      }
+  };
+
+  const shareViaSystem = async () => {
+      try {
+          const message = getShareMessage(entryToShare);
+          await Share.share({
+              message: message,
+              title: `Journal: ${entryToShare.title}`
+          });
+          setShareModalVisible(false);
+      } catch (error) {
+          Alert.alert('Error', 'Share failed.');
+      }
+  };
+
+  // --- End Sharing Logic ---
 
   const handleAddEntry = () => {
     setEditingEntry(null);
     setTemplateData(null);
+    setInitialFormStep(0);
+    setInitialFormMode('edit'); 
     setTemplateModalVisible(true);
   };
 
-  const handleSelectTemplate = (templateType) => {
+  const handleSelectTemplate = (templateType, customData = {}) => {
     setTemplateModalVisible(false);
 
     if (templateType === 'incident') {
@@ -86,27 +343,35 @@ export const JournalPage = ({ navigation }) => {
     let data = { title: '', notes: '' };
     switch (templateType) {
       case 'journey':
+        const from = customData.from ? customData.from : '[Point A]';
+        const to = customData.to ? customData.to : '[Point B]';
         data = {
           title: 'Journey Log',
-          notes: 'From: [Point A]\nTo: [Point B]\n\nNotes:\n',
+          notes: `From: ${from}\nTo: ${to}\n\nNotes:\n`,
         };
         break;
       case 'meeting':
+        const meetPerson = customData.person ? customData.person : "[Person's Name]";
+        const meetLoc = customData.location ? customData.location : "[Location]";
         data = {
           title: 'Meeting Log',
-          notes: 'Met with: [Person\'s Name]\nLocation: [Location]\n\nNotes:\n',
+          notes: `Met with: ${meetPerson}\nLocation: ${meetLoc}\n\nNotes:\n`,
         };
         break;
       case 'interaction':
+        const interactPerson = customData.person ? customData.person : "[Person's Name]";
+        const outcome = customData.outcome ? customData.outcome : "[Good/Mild/Bad]";
         data = {
           title: 'Interaction Log',
-          notes: 'Interaction with: [Person\'s Name]\nOutcome: [Good/Mild/Bad]\n\nNotes:\n',
+          notes: `Interaction with: ${interactPerson}\nOutcome: ${outcome}\n\nNotes:\n`,
         };
         break;
       default:
         break;
     }
     setTemplateData(data);
+    setInitialFormStep(0);
+    setInitialFormMode('edit');
     setFormVisible(true);
   };
 
@@ -116,7 +381,35 @@ export const JournalPage = ({ navigation }) => {
       setIncidentFormVisible(true);
     } else {
       setTemplateData(null);
+      setInitialFormStep(0); 
+      setInitialFormMode('edit'); 
       setFormVisible(true);
+    }
+  };
+
+  const openEntryFullScreen = (item) => {
+      if (item.isIncidentReport) {
+        setEditingEntry(item);
+        setIncidentFormVisible(true);
+      } else {
+        setEditingEntry(item);
+        setTemplateData(null);
+        setInitialFormStep(3); 
+        setInitialFormMode('read'); 
+        setFormVisible(true);
+      }
+  }
+
+  const handleItemPress = (item) => {
+    const now = Date.now();
+    const DOUBLE_PRESS_DELAY = 300; 
+
+    if (lastTap.current && lastTap.current.id === item.id && (now - lastTap.current.timestamp) < DOUBLE_PRESS_DELAY) {
+      lastTap.current = null; 
+      openEntryFullScreen(item);
+    } else {
+      lastTap.current = { id: item.id, timestamp: now };
+      handleToggleExpand(item.id);
     }
   };
 
@@ -209,7 +502,7 @@ export const JournalPage = ({ navigation }) => {
     return (
       <TouchableOpacity
         style={[styles.journalItem, {backgroundColor: getSeverityColor(item.severity)}]}
-        onPress={() => handleToggleExpand(item.id)}
+        onPress={() => handleItemPress(item)} 
         activeOpacity={0.7}
       >
         <View style={styles.journalItemMainRow}>
@@ -230,7 +523,6 @@ export const JournalPage = ({ navigation }) => {
                 )}
             </View>
 
-            {/* Thumbnail: Increased Size */}
             {firstImage && !isExpanded && (
                 <Image source={{ uri: firstImage.uri }} style={styles.thumbnail} />
             )}
@@ -271,6 +563,23 @@ export const JournalPage = ({ navigation }) => {
         </View>
 
         <View style={styles.journalActionsRow}>
+          {/* Share Button */}
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPressIn={(e) => e.stopPropagation()}
+            onPress={() => handleShareButtonPress(item)}
+          >
+            <ShareIcon />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPressIn={(e) => e.stopPropagation()}
+            onPress={() => openEntryFullScreen(item)}
+          >
+            <MaximizeIcon />
+          </TouchableOpacity>
+
           <TouchableOpacity
             style={styles.actionButton}
             onPressIn={(e) => e.stopPropagation()}
@@ -294,6 +603,38 @@ export const JournalPage = ({ navigation }) => {
     <View style={styles.fullPage}>
       <PageHeader title="My Journal" onBack={() => navigation.goBack()} />
 
+      <View style={styles.searchContainer}>
+          <TextInput 
+            style={styles.searchInput}
+            placeholder="Search entries..."
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            clearButtonMode="while-editing"
+          />
+      </View>
+
+      <TouchableOpacity 
+        style={styles.calendarToggleButton} 
+        onPress={() => {
+            LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+            setIsCalendarVisible(!isCalendarVisible);
+        }}
+      >
+          <Text style={styles.calendarToggleText}>
+              {isCalendarVisible ? 'Hide Calendar' : 'Show Calendar View'}
+          </Text>
+      </TouchableOpacity>
+
+      {isCalendarVisible && (
+          <JournalCalendar 
+            entries={entries} 
+            onSelectDate={(date) => {
+                const dateStr = date.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+                setSearchQuery(dateStr); 
+            }}
+          />
+      )}
+
       <View style={styles.journalContainer}>
         {entries.length === 0 ? (
           <View style={styles.emptyState}>
@@ -308,8 +649,15 @@ export const JournalPage = ({ navigation }) => {
             sections={groupedEntries}
             keyExtractor={(item) => item.id}
             renderItem={renderJournalItem}
-            renderSectionHeader={({ section: { title } }) => (
-                <Text style={styles.sectionHeader}>{title}</Text>
+            renderSectionHeader={({ section: { title, data } }) => (
+                <TouchableOpacity onPress={() => toggleSection(title)} activeOpacity={0.7}>
+                    <View style={styles.sectionHeaderContainer}>
+                        <Text style={styles.sectionHeader}>{title}</Text>
+                        <Text style={styles.sectionCollapseIcon}>
+                            {collapsedSections.includes(title) ? 'Show' : 'Hide'}
+                        </Text>
+                    </View>
+                </TouchableOpacity>
             )}
             showsVerticalScrollIndicator={false}
             extraData={expandedEntryId}
@@ -321,6 +669,40 @@ export const JournalPage = ({ navigation }) => {
         <Text style={styles.fabText}>+</Text>
       </TouchableOpacity>
 
+      {/* --- Share Modal --- */}
+      <Modal visible={shareModalVisible} transparent={true} animationType="slide" onRequestClose={() => setShareModalVisible(false)}>
+          <View style={styles.modalOverlay}>
+              <View style={styles.shareModalContent}>
+                  <Text style={styles.shareModalTitle}>Share Entry</Text>
+                  <Text style={styles.shareModalSubtitle}>Send to Emergency Contacts</Text>
+                  
+                  {emergencyContacts.length > 0 ? (
+                      <FlatList 
+                          data={emergencyContacts}
+                          keyExtractor={item => item.id}
+                          renderItem={({ item }) => (
+                              <TouchableOpacity style={styles.contactItem} onPress={() => shareViaSMS(item)}>
+                                  <Text style={styles.contactName}>{item.name}</Text>
+                                  <Text style={styles.contactPhone}>{item.phone}</Text>
+                              </TouchableOpacity>
+                          )}
+                          style={{maxHeight: 200}}
+                      />
+                  ) : (
+                      <Text style={styles.noContactsText}>No emergency contacts found.</Text>
+                  )}
+
+                  <TouchableOpacity style={styles.systemShareButton} onPress={shareViaSystem}>
+                      <Text style={styles.systemShareText}>Share via other apps...</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity style={styles.cancelButton} onPress={() => setShareModalVisible(false)}>
+                      <Text style={styles.cancelButtonText}>Cancel</Text>
+                  </TouchableOpacity>
+              </View>
+          </View>
+      </Modal>
+
       <JournalTemplateModal
         visible={templateModalVisible}
         onClose={() => setTemplateModalVisible(false)}
@@ -331,6 +713,8 @@ export const JournalPage = ({ navigation }) => {
         visible={formVisible}
         entry={editingEntry}
         templateData={templateData}
+        initialStep={initialFormStep}
+        initialMode={initialFormMode}
         onClose={() => setFormVisible(false)}
         onSave={handleSaveEntry}
       />
@@ -355,6 +739,30 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center'
     },
+    // Search Styles
+    searchContainer: {
+        paddingHorizontal: 20,
+        paddingVertical: 10,
+    },
+    searchInput: {
+        backgroundColor: 'white',
+        borderRadius: 8,
+        paddingHorizontal: 15,
+        paddingVertical: 10,
+        fontSize: 16,
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+    },
+    // Calendar Toggle
+    calendarToggleButton: {
+        alignItems: 'center',
+        marginBottom: 10,
+    },
+    calendarToggleText: {
+        color: '#F472B6',
+        fontWeight: '600',
+        fontSize: 14,
+    },
     journalContainer: {
         flex: 1,
         paddingHorizontal: 20,
@@ -377,13 +785,23 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         maxWidth: '80%',
     },
+    sectionHeaderContainer: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        backgroundColor: '#FFF8F8',
+        paddingTop: 16,
+        paddingBottom: 8,
+    },
     sectionHeader: {
         fontSize: 18,
         fontWeight: 'bold',
         color: '#1F2937',
-        backgroundColor: '#FFF8F8',
-        paddingTop: 16,
-        paddingBottom: 8,
+    },
+    sectionCollapseIcon: {
+        fontSize: 12,
+        color: '#6B7280',
+        fontWeight: '600',
     },
     journalItem: {
       padding: 16,
@@ -404,7 +822,6 @@ const styles = StyleSheet.create({
       flex: 1,
       marginRight: 10,
     },
-    // Updated thumbnail size
     thumbnail: {
         width: 100,
         height: 100,
@@ -519,5 +936,72 @@ const styles = StyleSheet.create({
       marginLeft: 4,
       fontWeight: '500',
       textTransform: 'capitalize',
+    },
+    
+    // Share Modal Styles
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'flex-end',
+    },
+    shareModalContent: {
+        backgroundColor: 'white',
+        borderTopLeftRadius: 20,
+        borderTopRightRadius: 20,
+        padding: 20,
+        maxHeight: '60%',
+    },
+    shareModalTitle: {
+        fontSize: 20,
+        fontWeight: 'bold',
+        color: '#1F2937',
+        marginBottom: 5,
+        textAlign: 'center',
+    },
+    shareModalSubtitle: {
+        fontSize: 14,
+        color: '#6B7280',
+        marginBottom: 20,
+        textAlign: 'center',
+    },
+    contactItem: {
+        paddingVertical: 15,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F3F4F6',
+    },
+    contactName: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#374151',
+    },
+    contactPhone: {
+        fontSize: 14,
+        color: '#9CA3AF',
+    },
+    noContactsText: {
+        textAlign: 'center',
+        color: '#9CA3AF',
+        marginVertical: 20,
+    },
+    systemShareButton: {
+        marginTop: 15,
+        paddingVertical: 12,
+        backgroundColor: '#F3F4F6',
+        borderRadius: 8,
+        alignItems: 'center',
+    },
+    systemShareText: {
+        color: '#4B5563',
+        fontWeight: '600',
+    },
+    cancelButton: {
+        marginTop: 10,
+        paddingVertical: 12,
+        alignItems: 'center',
+    },
+    cancelButtonText: {
+        color: '#EF4444',
+        fontWeight: '600',
+        fontSize: 16,
     },
 });
