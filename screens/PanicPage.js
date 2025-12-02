@@ -1,39 +1,50 @@
-import React, { useRef, useEffect, useState } from 'react'; // ADDED useEffect, useState
-import { View, Text, TouchableOpacity, StyleSheet, Alert, Animated, Image } from 'react-native';
+import React, { useRef, useEffect, useState } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, Animated, Image, Switch } from 'react-native';
 import * as Location from 'expo-location';
 import * as SMS from 'expo-sms';
 import { useEmergencyContacts } from '../context/EmergencyContactsContext';
 import { MenuIcon } from '../components/Icons';
-import AsyncStorage from '@react-native-async-storage/async-storage'; // ADDED AsyncStorage
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { sendBulkPushNotifications, getUserToken } from '../services/expoPushService';
 
 const DEFAULT_PANIC_DURATION = 3000; // 3 seconds in ms
 
 export const PanicPage = ({ navigation }) => {
   const { contacts } = useEmergencyContacts();
-  const [pressDuration, setPressDuration] = useState(DEFAULT_PANIC_DURATION); // ADDED state
+  const [pressDuration, setPressDuration] = useState(DEFAULT_PANIC_DURATION);
+  const [isAutoAlertEnabled, setIsAutoAlertEnabled] = useState(false); // Toggle state
+
   const pressTimeout = useRef(null);
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const waveAnim = useRef(new Animated.Value(0)).current;
 
-  // ADDED effect to load setting
   useEffect(() => {
     const loadSettings = async () => {
       try {
-        // Fetch the duration (stored in seconds) and convert to milliseconds
+        // Load press duration
         const duration = await AsyncStorage.getItem('@panic_press_duration');
         if (duration !== null) {
-          // Use stored value * 1000, fall back to default if parsing fails
           const loadedDuration = parseInt(duration, 10);
           if (!isNaN(loadedDuration) && loadedDuration > 0) {
             setPressDuration(loadedDuration * 1000);
           }
         }
+        // Load toggle state
+        const autoAlert = await AsyncStorage.getItem('@panic_auto_alert_enabled');
+        if (autoAlert !== null) {
+            setIsAutoAlertEnabled(JSON.parse(autoAlert));
+        }
       } catch (e) {
-        console.error("Failed to load panic press duration:", e);
+        console.error("Failed to load panic settings:", e);
       }
     };
     loadSettings();
-  }, []); //
+  }, []);
+
+  const toggleAutoAlert = async (value) => {
+      setIsAutoAlertEnabled(value);
+      await AsyncStorage.setItem('@panic_auto_alert_enabled', JSON.stringify(value));
+  };
 
   // Animation for the button itself (slight pulse)
   const buttonPulseAnimation = Animated.loop(
@@ -55,7 +66,7 @@ export const PanicPage = ({ navigation }) => {
   const wavePulseAnimation = Animated.loop(
     Animated.timing(waveAnim, {
       toValue: 1,
-      duration: 1500, // Duration for the wave to expand and fade
+      duration: 1500,
       useNativeDriver: true,
     })
   );
@@ -65,11 +76,10 @@ export const PanicPage = ({ navigation }) => {
     wavePulseAnimation.start();
     pressTimeout.current = setTimeout(() => {
       triggerPanicAlert();
-    }, pressDuration); // USE DYNAMIC DURATION
+    }, pressDuration);
   };
 
   const handlePressOut = () => {
-    // Stop and reset all animations
     buttonPulseAnimation.stop();
     wavePulseAnimation.stop();
     scaleAnim.setValue(1);
@@ -94,27 +104,60 @@ export const PanicPage = ({ navigation }) => {
       Alert.alert('Permission Denied', 'Permission to access location was denied.');
       return;
     }
+    
     try {
+      // 1. Get Location
       let location = await Location.getCurrentPositionAsync({});
       const { latitude, longitude } = location.coords;
+      const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`;
+      const message = `Emergency! I need help. My current location is: ${googleMapsUrl}`;
 
-      const message = `Emergency! I need help. My current location is: https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`;
+      // 2. Automatic Push Notification (If enabled)
+      if (isAutoAlertEnabled) {
+          const contactsWithApp = contacts.filter(c => c.linkedAppUserId);
+          
+          if (contactsWithApp.length > 0) {
+              const tokens = [];
+              console.log("Fetching tokens for automatic alert...");
+              
+              // Fetch tokens for all linked contacts
+              for (const contact of contactsWithApp) {
+                  const token = await getUserToken(contact.linkedAppUserId);
+                  if (token) {
+                      tokens.push(token);
+                  }
+              }
+
+              if (tokens.length > 0) {
+                  await sendBulkPushNotifications(
+                      tokens,
+                      "🚨 PANIC ALERT 🚨",
+                      `I need help! Tap to see location.`,
+                      { latitude, longitude, url: googleMapsUrl, type: 'PANIC' }
+                  );
+                  console.log("Automatic push alerts sent successfully.");
+                  // Optional: Provide feedback toast here
+              }
+          }
+      }
+
+      // 3. Manual SMS Fallback (Original Method)
       const recipients = contacts.map(c => c.phone);
-
       const isAvailable = await SMS.isAvailableAsync();
+      
       if (isAvailable) {
         const { result } = await SMS.sendSMSAsync(recipients, message);
         console.log('SMS sending result:', result);
       } else {
         Alert.alert('SMS Not Available', 'SMS is not available on this device.');
       }
+
     } catch (error) {
       console.error("Failed to get location or send alert:", error);
       Alert.alert('Error', 'Could not get your location or send SMS. Please try again.');
     }
   };
 
-  // Interpolate the wave animation for multiple concentric circles
   const createWaveStyle = (startScale, endScale, startOpacity) => ({
     ...styles.wave,
     transform: [
@@ -131,7 +174,6 @@ export const PanicPage = ({ navigation }) => {
     }),
   });
   
-  // Calculate duration in seconds for display, defaulting to 3
   const displayDuration = Math.round(pressDuration / 1000) || 3;
 
   return (
@@ -142,13 +184,12 @@ export const PanicPage = ({ navigation }) => {
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Emergency</Text>
         <Image
-          source={{ uri: 'https://placehold.co/40x40/F8C8DC/333333?text=U' }}
+          source={{ uri: '[https://placehold.co/40x40/F8C8DC/333333?text=U](https://placehold.co/40x40/F8C8DC/333333?text=U)' }}
           style={styles.profileImage}
         />
       </View>
 
       <View style={styles.pageContainer}>
-        {/* Placeholder for background elements from the image */}
         <View style={styles.backgroundDecor}>
             <Text style={styles.backgroundIcon}>☀️</Text>
             <Text style={styles.backgroundIcon}>☁️</Text>
@@ -167,7 +208,6 @@ export const PanicPage = ({ navigation }) => {
                 activeOpacity={0.8}
               >
                 <Text style={styles.sosButtonText}>SOS</Text>
-                {/* USE DYNAMIC DURATION FOR DISPLAY */}
                 <Text style={styles.sosButtonSubtext}>Press for {displayDuration} seconds</Text> 
               </TouchableOpacity>
             </Animated.View>
@@ -176,6 +216,22 @@ export const PanicPage = ({ navigation }) => {
           <Text style={styles.panicSubtext}>
             This will alert your emergency contacts and share your location.
           </Text>
+          
+          {/* NEW: Auto Alert Toggle */}
+          <View style={styles.toggleContainer}>
+              <Text style={styles.toggleLabel}>Send automatic app alerts</Text>
+              <Switch 
+                trackColor={{ false: "#767577", true: "#FF453A" }}
+                thumbColor={isAutoAlertEnabled ? "#fff" : "#f4f3f4"}
+                onValueChange={toggleAutoAlert}
+                value={isAutoAlertEnabled}
+              />
+          </View>
+          {isAutoAlertEnabled && (
+              <Text style={styles.toggleHelper}>
+                  Contacts with linked App IDs will receive an instant notification.
+              </Text>
+          )}
         </View>
       </View>
     </View>
@@ -192,12 +248,9 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingHorizontal: 16,
-        paddingTop: 50, // SafeAreaView might be better
+        paddingTop: 50,
         paddingBottom: 10,
         backgroundColor: '#F8F9FA'
-    },
-    headerIcon: {
-        padding: 8,
     },
     headerTitle: {
         fontSize: 18,
@@ -286,4 +339,31 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         maxWidth: '80%',
     },
+    toggleContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginTop: 30,
+        backgroundColor: 'white',
+        paddingHorizontal: 20,
+        paddingVertical: 10,
+        borderRadius: 20,
+        elevation: 2,
+        shadowColor: '#000',
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        shadowOffset: { width: 0, height: 2}
+    },
+    toggleLabel: {
+        fontSize: 16,
+        color: '#333',
+        marginRight: 10,
+        fontWeight: '500',
+    },
+    toggleHelper: {
+        fontSize: 12,
+        color: '#999',
+        marginTop: 8,
+        textAlign: 'center',
+        width: '70%',
+    }
 });

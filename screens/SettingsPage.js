@@ -1,169 +1,309 @@
 import React, { useState, useEffect } from 'react';
-// ADDED Platform to imports below:
-import { View, Text, StyleSheet, TouchableOpacity, Alert, Switch, Platform } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  Share,
+  Alert,
+  Platform
+} from 'react-native';
 import { PageHeader } from '../components/PageHeader';
 import { useAuth } from '../context/AuthContext';
-import * as Notifications from 'expo-notifications';
+import { 
+  MaterialIcons, 
+  Ionicons, 
+} from '@expo/vector-icons';
+import { getAuth } from 'firebase/auth'; // Direct Firebase Access
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// --- IMPORT NOTIFICATION SERVICE ---
-import { showSafetyBanner, hideSafetyBanner } from '../services/NotificationActionService';
+// Theme Colors
+const mainColor = '#F87171';
+const backgroundColor = '#FFF8F8';
+const cardColor = '#FFFFFF';
+const textColor = '#1F2937';
+const subTextColor = '#6B7280';
 
 export const SettingsPage = ({ navigation }) => {
-  const { logout } = useAuth();
-  const [isBannerActive, setIsBannerActive] = useState(false);
+  const authContext = useAuth();
+  const [displayUserId, setDisplayUserId] = useState('Loading...');
 
-  // Optional: Check if notifications are currently active when page loads
+  // Robust ID Fetching Logic
   useEffect(() => {
-    checkNotificationStatus();
-  }, []);
+    const fetchUserId = async () => {
+      // 1. Try getting it from the Auth Context
+      if (authContext?.user?.uid) {
+        setDisplayUserId(authContext.user.uid);
+        return;
+      }
 
-  const checkNotificationStatus = async () => {
-    const displayed = await Notifications.getPresentedNotificationsAsync();
-    // Check if our specific safety category notification is currently displayed
-    const isSafetyShowing = displayed.some(n => n.request.content.categoryIdentifier === 'SAFETY_CONTROL_BANNER');
-    setIsBannerActive(isSafetyShowing);
-  };
+      // 2. Try getting it directly from Firebase (most reliable)
+      try {
+        const auth = getAuth();
+        if (auth.currentUser?.uid) {
+          setDisplayUserId(auth.currentUser.uid);
+          return;
+        }
+      } catch (e) {
+        console.log('Firebase auth check failed', e);
+      }
 
-  const handleLogout = () => {
-    try {
-      // Ensure banner is removed on logout
-      hideSafetyBanner();
-      logout();
-    } catch (e) {
-      console.warn('Logout failed', e);
-      Alert.alert('Error', 'Could not log out');
+      // 3. Try getting it from AsyncStorage (fallback)
+      try {
+        const storedId = await AsyncStorage.getItem('userId'); // Adjust key if you use a different one
+        if (storedId) {
+          setDisplayUserId(storedId);
+          return;
+        }
+      } catch (e) {}
+
+      setDisplayUserId('Not Connected');
+    };
+
+    fetchUserId();
+  }, [authContext]);
+
+  const handleShareId = async () => {
+    if (displayUserId === 'Not Connected' || displayUserId === 'Loading...') {
+      Alert.alert("ID Not Found", "Could not retrieve your User ID. Please ensure you are logged in.");
+      return;
     }
-  };
-
-  // --- NEW: Handler for the Safety Banner Toggle ---
-  const toggleSafetyBanner = async (value) => {
-    // Optimistically update UI state
-    setIsBannerActive(value);
     
     try {
-      if (value) {
-        await showSafetyBanner();
-         // Optional feedback
-         if (Platform.OS === 'android') {
-             // You could add ToastAndroid here if desired
-         }
-      } else {
-        await hideSafetyBanner();
-      }
+      const result = await Share.share({
+        message: `Hey! I'm setting up my safety app. Please link my User ID in your contact settings so I can send you automatic alerts: ${displayUserId}`,
+        title: 'My Safety App User ID',
+      });
     } catch (error) {
-      console.error("Failed to toggle banner:", error);
-      Alert.alert("Error", "Could not update safety banner state.");
-      // Revert state on failure
-      setIsBannerActive(!value);
+      Alert.alert('Error', error.message);
     }
   };
 
-  return (
-    <View style={styles.fullPage}>
-      <PageHeader title="Settings" onBack={() => navigation.goBack()} />
-      <View style={styles.pageContainer}>
-        
-        {/* --- NEW: Safety Banner Toggle Row --- */}
-        <View style={styles.toggleContainer}>
-            <Text style={styles.toggleLabel}>Active Safety Banner</Text>
-            <Switch
-                trackColor={{ false: "#E5E7EB", true: "#FEE2E2" }}
-                thumbColor={isBannerActive ? "#EF4444" : "#9CA3AF"}
-                ios_backgroundColor="#E5E7EB"
-                onValueChange={toggleSafetyBanner}
-                value={isBannerActive}
-            />
-        </View>
-        <Text style={styles.helperText}>
-            Shows a persistent notification to quickly trigger Panic or Fake Call from outside the app.
-        </Text>
-
-        <TouchableOpacity 
-          style={styles.buttonStyle} 
-          onPress={() => navigation.navigate('UserProfileSettings')}
-        >
-             <Text style={styles.linkText}>User Profile</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={styles.buttonStyle} 
-          onPress={() => navigation.navigate('FakeCallSettings')}
-        >
-          <Text style={styles.linkText}>Fake Call Settings</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity 
-          style={styles.buttonStyle} 
-          onPress={() => navigation.navigate('DiscreetMode')}
-        >
-          <Text style={styles.linkText}>Discreet Mode</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={styles.buttonStyle} 
-          onPress={() => navigation.navigate('BackupAndRestore')}
-        >
-          <Text style={styles.linkText}>Backup & Restore</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity 
-          style={[styles.buttonStyle, { marginTop: 24 }]} 
-          onPress={handleLogout}
-        >
-          <Text style={[styles.linkText, { color: '#EF4444', borderColor: '#FECACA' }]}>Log out</Text>
-        </TouchableOpacity>
+  const SettingItem = ({ icon, title, subtitle, onPress, danger = false }) => (
+    <TouchableOpacity style={styles.itemContainer} onPress={onPress}>
+      <View style={[styles.iconBox, { backgroundColor: danger ? '#FEE2E2' : '#FCE7F3' }]}>
+        {icon}
       </View>
+      <View style={styles.textContainer}>
+        <Text style={[styles.itemTitle, danger && styles.dangerText]}>{title}</Text>
+        {subtitle && <Text style={styles.itemSubtitle}>{subtitle}</Text>}
+      </View>
+      <MaterialIcons name="chevron-right" size={24} color="#D1D5DB" />
+    </TouchableOpacity>
+  );
+
+  return (
+    <View style={styles.container}>
+      <PageHeader title="Settings" onBack={() => navigation.goBack()} />
+      
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        
+        {/* User Identity Section */}
+        <View style={styles.section}>
+            <Text style={styles.sectionHeader}>MY SAFETY ID</Text>
+            <View style={styles.idCard}>
+                <View style={styles.idInfo}>
+                    <Text style={styles.idLabel}>User ID</Text>
+                    <Text style={styles.idValue} selectable>{displayUserId}</Text>
+                    <Text style={styles.idHelper}>
+                        Share this ID with your contacts so they can link you for automatic alerts.
+                    </Text>
+                </View>
+                <TouchableOpacity 
+                  style={[styles.shareButton, (displayUserId === 'Not Connected') && { opacity: 0.5 }]} 
+                  onPress={handleShareId}
+                  disabled={displayUserId === 'Not Connected'}
+                >
+                    <Ionicons name="share-outline" size={22} color="white" />
+                    <Text style={styles.shareButtonText}>Share</Text>
+                </TouchableOpacity>
+            </View>
+        </View>
+
+        {/* General Settings */}
+        <View style={styles.section}>
+          <Text style={styles.sectionHeader}>PREFERENCES</Text>
+          <View style={styles.card}>
+            <SettingItem 
+              icon={<Ionicons name="person-outline" size={22} color={mainColor} />}
+              title="Profile"
+              subtitle="Edit name and personal details"
+              onPress={() => navigation.navigate('UserProfileSettings')}
+            />
+            <View style={styles.divider} />
+            <SettingItem 
+              icon={<Ionicons name="people-outline" size={22} color={mainColor} />}
+              title="Emergency Contacts"
+              subtitle="Manage who gets notified"
+              onPress={() => navigation.navigate('Contacts')}
+            />
+            <View style={styles.divider} />
+             <SettingItem 
+              icon={<Ionicons name="notifications-outline" size={22} color={mainColor} />}
+              title="Fake Call Options"
+              subtitle="Customize caller name and timing"
+              onPress={() => navigation.navigate('FakeCallSettings')}
+            />
+          </View>
+        </View>
+
+        {/* Security & Data */}
+        <View style={styles.section}>
+          <Text style={styles.sectionHeader}>SECURITY</Text>
+          <View style={styles.card}>
+            <SettingItem 
+              icon={<MaterialIcons name="security" size={22} color={mainColor} />}
+              title="Discreet Mode"
+              subtitle="Customize panic triggers"
+              onPress={() => navigation.navigate('DiscreetModeSettings')}
+            />
+            <View style={styles.divider} />
+            <SettingItem 
+              icon={<Ionicons name="cloud-upload-outline" size={22} color={mainColor} />}
+              title="Backup & Restore"
+              subtitle="Save your settings and contacts"
+              onPress={() => navigation.navigate('BackupAndRestore')}
+            />
+          </View>
+        </View>
+
+        {/* Actions */}
+        <View style={styles.section}>
+          <View style={styles.card}>
+            <SettingItem 
+              icon={<MaterialIcons name="logout" size={22} color="#EF4444" />}
+              title="Log Out"
+              onPress={authContext?.logout}
+              danger
+            />
+          </View>
+        </View>
+
+        <Text style={styles.versionText}>Version 1.0.3</Text>
+      </ScrollView>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-    fullPage: {
-        flex: 1,
-        backgroundColor: '#FFF8F8', 
-    },
-    pageContainer: {
-        flex: 1,
-        alignItems: 'center',
-        padding: 20,
-    },
-    buttonStyle: {
-        width: '100%', 
-        marginBottom: 15, 
-    },
-    linkText: {
-        fontSize: 18,
-        color: '#F87171',
-        padding: 15,
-        borderWidth: 1,
-        borderColor: '#FEE2E2',
-        borderRadius: 8,
-        textAlign: 'center',
-        backgroundColor: 'white', 
-    },
-    toggleContainer: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        width: '100%',
-        padding: 15,
-        backgroundColor: 'white',
-        borderWidth: 1,
-        borderColor: '#FEE2E2',
-        borderRadius: 8,
-        marginBottom: 5,
-    },
-    toggleLabel: {
-        fontSize: 18,
-        color: '#4B5563',
-        fontWeight: '500',
-    },
-    helperText: {
-        fontSize: 14,
-        color: '#6B7280',
-        textAlign: 'left',
-        width: '100%',
-        marginBottom: 25,
-        paddingHorizontal: 4,
-    }
+  container: {
+    flex: 1,
+    backgroundColor: backgroundColor,
+  },
+  scrollContent: {
+    padding: 20,
+    paddingBottom: 40,
+  },
+  section: {
+    marginBottom: 24,
+  },
+  sectionHeader: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: subTextColor,
+    marginBottom: 10,
+    marginLeft: 4,
+    letterSpacing: 1,
+  },
+  card: {
+    backgroundColor: cardColor,
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+    overflow: 'hidden',
+  },
+  idCard: {
+    backgroundColor: cardColor,
+    borderRadius: 16,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#FCE7F3',
+  },
+  idInfo: {
+    flex: 1,
+    marginRight: 12,
+  },
+  idLabel: {
+    fontSize: 12,
+    color: subTextColor,
+    marginBottom: 2,
+    fontWeight: '600',
+  },
+  idValue: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: textColor,
+    marginBottom: 6,
+  },
+  idHelper: {
+    fontSize: 11,
+    color: subTextColor,
+    lineHeight: 14,
+  },
+  shareButton: {
+    backgroundColor: mainColor,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  shareButtonText: {
+    color: 'white',
+    fontWeight: '600',
+    fontSize: 12,
+    marginTop: 2,
+  },
+  itemContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+  },
+  iconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
+  },
+  textContainer: {
+    flex: 1,
+  },
+  itemTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: textColor,
+    marginBottom: 2,
+  },
+  itemSubtitle: {
+    fontSize: 13,
+    color: subTextColor,
+  },
+  dangerText: {
+    color: '#EF4444',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#F3F4F6',
+    marginLeft: 72, 
+  },
+  versionText: {
+    textAlign: 'center',
+    color: '#9CA3AF',
+    fontSize: 12,
+    marginTop: 10,
+  },
 });

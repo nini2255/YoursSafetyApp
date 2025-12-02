@@ -24,23 +24,22 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
 import BackgroundTimer from 'react-native-background-timer';
+import { sendBulkPushNotifications, getUserToken } from '../services/expoPushService'; // NEW
 
-// --- NEW IMPORTS FOR NOTIFICATION HANDLING ---
 import { 
   TIMER_EXPIRED_CATEGORY, 
   dismissNonSafetyNotifications 
 } from '../services/NotificationActionService';
 
-// --- Constants ---
 const ITEM_HEIGHT = 50;
 const VISIBLE_ITEMS = 3;
 const screenWidth = Dimensions.get('window').width;
 const LAST_TIMER_KEY = '@last_timer_duration';
 const TIMER_END_TIME_KEY = '@timer_end_time';
 const TIMER_TOTAL_SECONDS_KEY = '@timer_total_seconds';
+const TIMER_AUTO_ALERT_KEY = '@timer_auto_alert_enabled'; // NEW
 const NOTIFICATION_CHANNEL_ID = 'timer-channel';
 
-// --- Light Theme Colors ---
 const mainColor = '#F87171';
 const backgroundColor = '#FFF8F8';
 const textColor = '#1F2937';
@@ -53,7 +52,6 @@ const CIRCLE_RADIUS = screenWidth * 0.3;
 const CIRCLE_STROKE_WIDTH = 10;
 const CIRCLE_CIRCUMFERENCE = 2 * Math.PI * CIRCLE_RADIUS;
 
-// --- Helper: Time Formatting ---
 const formatTime = (secs) => {
   const h = Math.floor(secs / 3600);
   const m = Math.floor((secs % 3600) / 60);
@@ -61,7 +59,6 @@ const formatTime = (secs) => {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 };
 
-// --- Helper: Wheel Picker Component ---
 const WheelPicker = ({ data, selectedValue, onSelect, label }) => {
   const scrollViewRef = useRef(null);
   const wheelHeight = ITEM_HEIGHT * VISIBLE_ITEMS;
@@ -123,9 +120,6 @@ const WheelPicker = ({ data, selectedValue, onSelect, label }) => {
   );
 };
 
-// --- NOTIFICATION HANDLER SETUP ---
-// Note: The main handler in NotificationActionService.js might override this globally depending on import order,
-// but keeping it here ensures Timer behaves as expected when focused.
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
@@ -136,7 +130,6 @@ Notifications.setNotificationHandler({
   }),
 });
 
-// --- Timer Page Component ---
 export const TimerPage = ({ navigation }) => {
   const { contacts } = useEmergencyContacts();
   const [selectedHour, setSelectedHour] = useState(0);
@@ -148,6 +141,8 @@ export const TimerPage = ({ navigation }) => {
   const [isLoadingDefaults, setIsLoadingDefaults] = useState(true);
   const [isStarting, setIsStarting] = useState(false);
   
+  const [isAutoAlertEnabled, setIsAutoAlertEnabled] = useState(false); // NEW STATE
+
   const timerFinishTimeRef = useRef(null);
   const appState = useRef(AppState.currentState);
 
@@ -158,9 +153,8 @@ export const TimerPage = ({ navigation }) => {
   const HOURS = Array.from({ length: 24 }, (_, i) => i);
   const MINUTES_SECONDS = Array.from({ length: 60 }, (_, i) => i);
 
-  // --- Load last timer duration ---
   useEffect(() => {
-    const loadLastTimer = async () => {
+    const loadData = async () => {
       try {
         const storedDuration = await AsyncStorage.getItem(LAST_TIMER_KEY);
         if (storedDuration) {
@@ -169,16 +163,20 @@ export const TimerPage = ({ navigation }) => {
           setSelectedMinute(Number(minute) || 0);
           setSelectedSecond(Number(second) || 0);
         }
+        // NEW: Load toggle preference
+        const autoAlert = await AsyncStorage.getItem(TIMER_AUTO_ALERT_KEY);
+        if (autoAlert !== null) {
+            setIsAutoAlertEnabled(JSON.parse(autoAlert));
+        }
       } catch (error) {
-        console.error('Error loading last timer duration:', error);
+        console.error('Error loading data:', error);
       } finally {
         setIsLoadingDefaults(false);
       }
     };
-    loadLastTimer();
+    loadData();
   }, []);
 
-  // --- NOTIFICATION & APP STATE SETUP ---
   useEffect(() => {
     const setupNotifications = async () => {
       if (Platform.OS === 'android') {
@@ -205,12 +203,7 @@ export const TimerPage = ({ navigation }) => {
 
     setupNotifications();
 
-    // We rely on the global listener in App.js for background/killed states now,
-    // but keeping a local one for when the app is already open can be useful as a fallback,
-    // though the modal should handle it. 
-    // Actually, if App.js handles it globally, we might not strictly need this if it routes here.
     const responseListener = Notifications.addNotificationResponseReceivedListener(response => {
-       // If we are already on this page, just ensure the modal is visible.
        if (response.notification.request.content.categoryIdentifier === TIMER_EXPIRED_CATEGORY) {
            setTimerCompleteModalVisible(true);
        }
@@ -223,11 +216,9 @@ export const TimerPage = ({ navigation }) => {
     };
   }, []);
 
-  // --- APP STATE HANDLING ---
   useEffect(() => {
     const subscription = AppState.addEventListener('change', async nextAppState => {
       if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
-        // Sync up on return.
         const endTimeString = await AsyncStorage.getItem(TIMER_END_TIME_KEY);
         if (endTimeString) {
           const endTime = parseInt(endTimeString, 10);
@@ -263,7 +254,6 @@ export const TimerPage = ({ navigation }) => {
     await AsyncStorage.removeItem(TIMER_TOTAL_SECONDS_KEY);
   };
 
-  // --- BACKGROUND-CAPABLE TIMER LOGIC ---
   useEffect(() => {
     if (isRunning && timerFinishTimeRef.current !== null) {
       BackgroundTimer.runBackgroundTimer(() => {
@@ -275,14 +265,12 @@ export const TimerPage = ({ navigation }) => {
           setSecondsLeft(0);
 
           if (AppState.currentState.match(/inactive|background/)) {
-              // --- UPDATED NOTIFICATION SCHEDULING ---
               Notifications.scheduleNotificationAsync({
                   content: {
                       title: "⏰ Timer Finished!",
                       body: "Tap here to open the app and choose an action.",
                       sound: true,
                       priority: Notifications.AndroidNotificationPriority.HIGH,
-                      // ADDED CATEGORY HERE:
                       categoryIdentifier: TIMER_EXPIRED_CATEGORY, 
                   },
                   trigger: null,
@@ -303,7 +291,11 @@ export const TimerPage = ({ navigation }) => {
     };
   }, [isRunning]); 
 
-  // --- ACTIONS ---
+  const toggleAutoAlert = async (value) => {
+    setIsAutoAlertEnabled(value);
+    await AsyncStorage.setItem(TIMER_AUTO_ALERT_KEY, JSON.stringify(value));
+  };
+
   const startTimer = async () => {
     if (isStarting) return;
     setIsStarting(true);
@@ -324,7 +316,6 @@ export const TimerPage = ({ navigation }) => {
     }
 
     try {
-      // --- CHANGED: Use safe dismiss to protect the banner ---
       await dismissNonSafetyNotifications();
       await Notifications.cancelAllScheduledNotificationsAsync();
 
@@ -380,10 +371,46 @@ export const TimerPage = ({ navigation }) => {
     }
   };
 
+  // NEW: Function to handle auto-sending logic
+  const sendAutomaticPush = async () => {
+      const contactsWithApp = contacts.filter(c => c.linkedAppUserId);
+      if (contactsWithApp.length === 0) return;
+
+      try {
+          const location = await Location.getCurrentPositionAsync({});
+          const { latitude, longitude } = location.coords;
+          const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`;
+          
+          const tokens = [];
+          for (const contact of contactsWithApp) {
+              const token = await getUserToken(contact.linkedAppUserId);
+              if (token) tokens.push(token);
+          }
+
+          if (tokens.length > 0) {
+              await sendBulkPushNotifications(
+                  tokens,
+                  "⏰ TIMER EXPIRED",
+                  "My safety timer finished and I haven't responded. Please check on me.",
+                  { latitude, longitude, url: googleMapsUrl, type: 'TIMER_EXPIRED' }
+              );
+              console.log("Auto timer push sent.");
+          }
+      } catch (error) {
+          console.error("Failed to send auto push:", error);
+      }
+  };
+
   const onTimerComplete = async () => {
     try { await Notifications.cancelAllScheduledNotificationsAsync(); } catch(e) {}
     await cleanupTimerState();
     Vibration.vibrate(Platform.OS === 'android' ? [0, 500, 500, 500] : [500, 500, 500]);
+    
+    // NEW: Trigger auto-alert if enabled
+    if (isAutoAlertEnabled) {
+        sendAutomaticPush();
+    }
+
     setTimerCompleteModalVisible(true);
   };
 
@@ -465,6 +492,19 @@ export const TimerPage = ({ navigation }) => {
           <TouchableOpacity style={styles.presetButton} onPress={() => setPreset(0, 45, 0)}><Text style={styles.presetButtonText}>45:00</Text></TouchableOpacity>
           <TouchableOpacity style={styles.presetButton} onPress={() => setPreset(1, 0, 0)}><Text style={styles.presetButtonText}>1:00:00</Text></TouchableOpacity>
         </View>
+        
+        {/* NEW: Toggle for Auto Alert */}
+        <View style={styles.toggleContainer}>
+            <Text style={styles.toggleLabel}>Auto-notify App Users</Text>
+            <Switch 
+                trackColor={{ false: "#767577", true: mainColor }}
+                thumbColor={isAutoAlertEnabled ? "#fff" : "#f4f3f4"}
+                onValueChange={toggleAutoAlert}
+                value={isAutoAlertEnabled}
+            />
+        </View>
+        {isAutoAlertEnabled && <Text style={styles.toggleHelper}>App users will be notified automatically when timer ends.</Text>}
+
         <TouchableOpacity style={[styles.controlButton, isStarting && { opacity: 0.5 }]} onPress={startTimer} disabled={isStarting}>
           {isStarting ? <ActivityIndicator color={backgroundColor} /> : <Svg width="32" height="32" viewBox="0 0 24 24" fill={backgroundColor}><Path d="M8 5v14l11-7z" /></Svg>}
         </TouchableOpacity>
@@ -598,4 +638,7 @@ const styles = StyleSheet.create({
   locationToggleText: { fontSize: 16, color: textColor },
   modalCloseButton: { backgroundColor: 'transparent', borderWidth: 1, borderColor: dimmedTextColor, marginTop: 10 },
   modalCloseButtonText: { color: dimmedTextColor },
+  toggleContainer: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginBottom: 5 },
+  toggleLabel: { fontSize: 16, color: textColor, marginRight: 10 },
+  toggleHelper: { fontSize: 12, color: dimmedTextColor, textAlign: 'center', marginBottom: 15 },
 });
