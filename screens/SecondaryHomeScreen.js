@@ -1,7 +1,8 @@
 import React, { useRef } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  Dimensions, SafeAreaView, StatusBar, Image
+  Dimensions, SafeAreaView, StatusBar, Image,
+  InteractionManager
 } from 'react-native';
 import { GestureDetector, Gesture, Directions } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,7 +17,7 @@ const CARD_BACKGROUND = '#FFFFFF';
 const TEXT_COLOR = '#291314';
 const SUB_TEXT_COLOR = '#888';
 
-const SecondaryHomeScreen = ({ navigation }) => {
+const SecondaryHomeScreen = ({ navigation, onTriggerFakeCall, onTriggerSudoku }) => {
   const { user } = useAuth();
   const lastPressRef = useRef(0);
 
@@ -33,13 +34,15 @@ const SecondaryHomeScreen = ({ navigation }) => {
 
   const swipeDownGesture = Gesture.Fling()
     .direction(Directions.DOWN)
-    .runOnJS(true) // <--- Add this line ensuring it runs on the JS thread
+    .runOnJS(true)
     .onEnd(() => navigation.canGoBack() && navigation.goBack());
 
   const features = [
     { name: 'Journal', route: 'Journal', icon: 'book-outline' },
     { name: 'Panic Button', route: 'Panic', icon: 'alert-circle-outline' },
     { name: 'Safety Timer', route: 'Timer', icon: 'time-outline' },
+    { name: 'Voice Record', route: 'Record', icon: 'mic-outline' },
+    { name: 'Geofence', route: 'GeofenceManagement', icon: 'location-outline' },
     { name: 'Fake Call', route: 'Home', icon: 'call-outline' },
     { name: 'Sudoku', route: 'Home', icon: 'grid-outline' },
     { name: 'Settings', route: 'Settings', icon: 'settings-outline' },
@@ -47,18 +50,27 @@ const SecondaryHomeScreen = ({ navigation }) => {
 
   const handleNavigation = (feature) => {
     const now = Date.now();
-    if (now - lastPressRef.current < 1500) return; // Debounce
+    if (now - lastPressRef.current < 1000) return; // Debounce
     lastPressRef.current = now;
 
     if (feature.route === 'Home') {
-      navigation.navigate({
-        name: 'Home',
-        params: {
-          triggerFakeCall: feature.name === 'Fake Call',
-          triggerSudoku: feature.name === 'Sudoku',
-        },
-        merge: true,
-      });
+      // 1. Close the modal FIRST
+      if (navigation.canGoBack()) {
+        navigation.goBack();
+      } else {
+        navigation.navigate('Home');
+      }
+
+      // 2. Wait for the modal to close before triggering the feature
+      // This prevents the "Echo" race condition where the screen mounts twice
+      setTimeout(() => {
+        if (feature.name === 'Fake Call' && onTriggerFakeCall) {
+          onTriggerFakeCall();
+        } else if (feature.name === 'Sudoku' && onTriggerSudoku) {
+          onTriggerSudoku();
+        }
+      }, 300); // 300ms delay to allow animation to finish
+      
     } else {
       navigation.navigate(feature.route);
     }

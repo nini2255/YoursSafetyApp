@@ -1,17 +1,5 @@
-import React, { useState } from 'react';
-import { 
-  View, 
-  Text, 
-  TextInput, 
-  TouchableOpacity, 
-  StyleSheet, 
-  Alert,
-  Image,
-  SafeAreaView,
-  ScrollView, // For scrollable content
-  KeyboardAvoidingView, // For keyboard handling
-  Platform // To check OS for KeyboardAvoidingView
-} from 'react-native';
+import React, { useState, Platform } from 'react';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, Image, SafeAreaView } from 'react-native';
 import { LockIcon, MailIcon } from '../components/Icons'; // Assuming icons are in ../components/Icons.js
 import { useAuth } from '../context/AuthContext'; // Import useAuth
 
@@ -49,88 +37,91 @@ export default function LoginScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.topShape}></View>
-
-      {/* --- ADDED KeyboardAvoidingView Wrapper --- */}
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.container}
-          keyboardShouldPersistTaps="handled" // Good for dismissing keyboard on tap
-        >
-          <Image
-            source={require('../assets/logo_version1.png')}
+      if (Platform.OS === 'ios') {
+        <View style={styles.topShape}>
+        <Image
+            source={require('../assets/logo_version1.png')} 
             style={styles.illustration}
             resizeMode="contain"
           />
-          <Text style={styles.welcomeTitle}>Welcome back!</Text>
-          <Text style={styles.welcomeSubtitle}>Log in to your existing account of YoursApp</Text>
+      </View>
+      }
+      else
+      {
+        <React.Fragment>
+        <View style={styles.topShape}></View>
+        <Image
+            source={require('../assets/logo_version1.png')} 
+            style={styles.illustration}
+            resizeMode="contain"
+          />
+        </React.Fragment>
+      }
+      
+      <View style={styles.container}>
+        
+        <Text style={styles.welcomeTitle}>Welcome back!</Text>
+        <Text style={styles.welcomeSubtitle}>Log in to your existing account of YourApp</Text>
 
-          <View style={styles.inputGroup}>
-            <MailIcon style={styles.inputIcon} color="#9CA3AF" />
-            <TextInput
-              style={styles.input}
-              placeholder="Username"
-              placeholderTextColor="#9CA3AF"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-          </View>
-          <View style={styles.inputGroup}>
-            <LockIcon style={styles.inputIcon} color="#9CA3AF" />
-            <TextInput
-              style={styles.input}
-              placeholder="Password"
-              placeholderTextColor="#9CA3AF"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-            />
-          </View>
+        <View style={styles.inputGroup}>
+          <MailIcon style={styles.inputIcon} color="#9CA3AF" />
+          <TextInput
+            style={styles.input}
+            placeholder="Username"
+            placeholderTextColor="#9CA3AF"
+            value={email}
+            onChangeText={setEmail}
+            keyboardType="email-address"
+            autoCapitalize="none"
+          />
+        </View>
+        <View style={styles.inputGroup}>
+          <LockIcon style={styles.inputIcon} color="#9CA3AF" />
+          <TextInput
+            style={styles.input}
+            placeholder="Password"
+            placeholderTextColor="#9CA3AF"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+          />
+        </View>
 
-          <TouchableOpacity style={styles.forgotPasswordButton} onPress={() => Alert.alert('Forgot Password', 'Feature to be implemented.')}>
-            <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+        <TouchableOpacity style={styles.forgotPasswordButton} onPress={() => Alert.alert('Forgot Password', 'Feature to be implemented.')}>
+          <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+        </TouchableOpacity>
+
+        {/* --- MODIFIED: Button shows loading state --- */}
+        <TouchableOpacity 
+          style={[styles.loginButton, isLoading && styles.buttonDisabled]} 
+          onPress={handleLogin}
+          disabled={isLoading}
+        >
+          <Text style={styles.loginButtonText}>
+            {isLoading ? 'LOGGING IN...' : 'LOG IN'}
+          </Text>
+        </TouchableOpacity>
+
+        <Text style={styles.orConnectText}>Or connect using</Text>
+
+        <View style={styles.socialButtonsContainer}>
+          <TouchableOpacity style={styles.socialButton}>
+            {/* <Image source={require('../assets/facebook-icon.png')} style={styles.socialIcon} /> */}
+            <Text style={styles.socialButtonText}>Facebook</Text>
           </TouchableOpacity>
-
-          {/* --- MODIFIED: Button shows loading state --- */}
-          <TouchableOpacity
-            style={[styles.loginButton, isLoading && styles.buttonDisabled]}
-            onPress={handleLogin}
-            disabled={isLoading}
-          >
-            <Text style={styles.loginButtonText}>
-              {isLoading ? 'LOGGING IN...' : 'LOG IN'}
-            </Text>
+          <TouchableOpacity style={[styles.socialButton, styles.googleButton]}>
+            {/* <Image source={require('../assets/google-icon.png')} style={styles.socialIcon} /> */}
+            <Text style={styles.socialButtonText}>Google</Text>
           </TouchableOpacity>
+        </View>
 
-          <Text style={styles.orConnectText}>Or connect using</Text>
-
-          <View style={styles.socialButtonsContainer}>
-            <TouchableOpacity style={styles.socialButton}>
-              {/* <Image source={require('../assets/facebook-icon.png')} style={styles.socialIcon} /> */}
-              <Text style={styles.socialButtonText}>Facebook</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.socialButton, styles.googleButton]}>
-              {/* <Image source={require('../assets/google-icon.png')} style={styles.socialIcon} /> */}
-              <Text style={styles.socialButtonText}>Google</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.signupPrompt}>
-            <Text style={styles.signupPromptText}>Don't have an account? </Text>
-            <TouchableOpacity onPress={() => navigation.navigate('Signup')}>
-              <Text style={styles.signupLink}>Sign Up</Text>
-            </TouchableOpacity>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-      {/* --- END KeyboardAvoidingView Wrapper --- */}
-
+        <View style={styles.signupPrompt}>
+          <Text style={styles.signupPromptText}>Don't have an account? </Text>
+          <TouchableOpacity onPress={() => navigation.navigate('Signup')}>
+            <Text style={styles.signupLink}>Sign Up</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
     </SafeAreaView>
   );
 }
@@ -145,23 +136,23 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    height: 280,
+    height: '35%', 
     backgroundColor: '#ffdedeff', 
     borderBottomLeftRadius: 50,
     borderBottomRightRadius: 50,
   },
-  scrollView: { flex: 1 },
   container: {
-    flexGrow: 1,
-    paddingHorizontal: 30,
-    paddingTop: 100,
-    paddingBottom: 40,
+    flex: 1,
+    paddingHorizontal: Platform.OS === 'ios' ? '7%' : 30,
+    paddingTop: Platform.OS === 'ios' ? '65%' :'20%', 
     alignItems: 'center',
   },
   illustration: {
-    width: '90%',
-    height: 220,
-    marginBottom: 20,
+    width: '100%',
+    height: 270, 
+    top: Platform.OS === 'ios' ? '15%' : -50,
+    marginBottom: Platform.OS === 'ios' ? '-10%' : 0,
+    marginLeft: Platform.OS === 'ios' ? '10%' : 0,
   },
   welcomeTitle: {
     fontSize: 26,
@@ -183,7 +174,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 25,
     borderWidth: 1,
-    borderColor: '#F87171',
+    borderColor: '#F87171', 
     height: 50,
     marginBottom: Platform.OS === 'ios' ? 20 : 15,
     paddingHorizontal: 15,
@@ -224,6 +215,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
   },
+  // --- ADDED: Style for disabled button ---
   buttonDisabled: {
     backgroundColor: '#FECACA', // Lighter pink
   },
@@ -263,6 +255,7 @@ const styles = StyleSheet.create({
   },
   signupPrompt: {
     flexDirection: 'row',
+    marginTop: 20,
   },
   signupPromptText: {
     fontSize: 14,

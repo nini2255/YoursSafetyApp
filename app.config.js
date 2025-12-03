@@ -19,10 +19,10 @@ export default {
       bundleIdentifier: "com.rafox2500.Yoursapp",
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
-        // CRITICAL: Complete iOS location permission strings
-        NSLocationWhenInUseUsageDescription: "YOURS needs your location to share your journey and detect arrivals.",
-        NSLocationAlwaysAndWhenInUseUsageDescription: "YOURS needs your location in the background to track your journey when the app is closed.",
-        UIBackgroundModes: ["location"]
+        // These strings are required by Apple for location access
+        NSMicrophoneUsageDescription: "Allow $(PRODUCT_NAME) to access your microphone to record audio journals.",
+        NSLocationWhenInUseUsageDescription: "This app needs access to your location to track your journeys and geofences.",
+        NSLocationAlwaysAndWhenInUseUsageDescription: "This app needs background location access to monitor geofences even when the app is closed."
       }
     },
     android: {
@@ -38,7 +38,8 @@ export default {
         "ACCESS_FINE_LOCATION",
         "ACCESS_BACKGROUND_LOCATION",
         "FOREGROUND_SERVICE",
-        "FOREGROUND_SERVICE_LOCATION"
+        "FOREGROUND_SERVICE_LOCATION",
+        "RECORD_AUDIO" // <--- Add this line for Android
       ],
       config: {
         googleMaps: {
