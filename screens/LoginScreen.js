@@ -46,6 +46,20 @@ export default function LoginScreen({ navigation }) {
     }
   };
 
+  // --- NEW: Google Login Handler ---
+  const handleGoogleLogin = async () => {
+    setIsLoading(true);
+    try {
+      await auth.googleLogin();
+      // No need to navigate manually; AuthContext state change triggers App.js navigation
+    } catch (error) {
+      console.error('Google Login Error:', error);
+      Alert.alert('Google Login Failed', error.message || 'Could not sign in with Google.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.topShape}></View>
@@ -72,11 +86,11 @@ export default function LoginScreen({ navigation }) {
             <MailIcon style={styles.inputIcon} color="#9CA3AF" />
             <TextInput
               style={styles.input}
-              placeholder="Email Address" // Changed from Username
+              placeholder="Email Address" 
               placeholderTextColor="#9CA3AF"
               value={email}
               onChangeText={setEmail}
-              keyboardType="email-address" // Enforces @ symbol on keyboard
+              keyboardType="email-address" 
               autoCapitalize="none"
             />
           </View>
@@ -112,9 +126,21 @@ export default function LoginScreen({ navigation }) {
 
           <View style={styles.socialButtonsContainer}>
             <TouchableOpacity style={styles.socialButton}>
+              {/* Optional: Add Facebook Icon if you have one */}
               <Text style={styles.socialButtonText}>Facebook</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.socialButton, styles.googleButton]}>
+            
+            {/* --- MODIFIED: Google Button connected to handleGoogleLogin --- */}
+            <TouchableOpacity 
+              style={[styles.socialButton, styles.googleButton]}
+              onPress={handleGoogleLogin}
+              disabled={isLoading}
+            >
+              <Image 
+                source={require('../assets/google-icon.png')} 
+                style={styles.socialIcon} 
+                resizeMode="contain"
+              />
               <Text style={styles.socialButtonText}>Google</Text>
             </TouchableOpacity>
           </View>
@@ -245,7 +271,14 @@ const styles = StyleSheet.create({
     height: 50,
     width: '48%', 
   },
-  googleButton: {},
+  googleButton: {
+    // Specific styles for Google button if needed
+  },
+  socialIcon: {
+    width: 24,
+    height: 24,
+    marginRight: 10,
+  },
   socialButtonText: {
     fontSize: 16,
     color: '#333',

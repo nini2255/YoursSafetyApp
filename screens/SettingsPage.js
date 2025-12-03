@@ -208,7 +208,7 @@ export const SettingsPage = ({ navigation }) => {
               icon={<MaterialIcons name="security" size={22} color={mainColor} />}
               title="Discreet Mode"
               subtitle="Customize panic triggers"
-              onPress={() => navigation.navigate('DiscreetModeSettings')}
+                onPress={() => navigation.navigate('DiscreetMode')} 
             />
             <View style={styles.divider} />
             <SettingItem 
