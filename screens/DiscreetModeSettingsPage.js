@@ -494,6 +494,7 @@ const styles = StyleSheet.create({
         fontSize: 18,
         textAlign: 'center',
         letterSpacing: 3,
+        color: '#1F2937',
     },
     bypassCodeLength: {
         textAlign: 'right',
