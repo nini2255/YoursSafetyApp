@@ -8,7 +8,7 @@ export default {
     orientation: "portrait",
     icon: "./assets/icon.png",
     userInterfaceStyle: "light",
-    newArchEnabled: false,
+    newArchEnabled: true,
     splash: {
       image: "./assets/splash-icon.png",
       resizeMode: "contain",
@@ -37,6 +37,10 @@ export default {
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
         "ACCESS_BACKGROUND_LOCATION",
+        "ACCESS_MEDIA_LOCATION",
+        "ACCESS_NOTIFICATION_POLICY",
+        "FOREGROUND_SERVICE",           // <--- REQUIRED for background tasks
+        "FOREGROUND_SERVICE_LOCATION",  // <--- REQUIRED for Android 14+ specific location tracking
         "RECORD_AUDIO" // <--- Add this line for Android
       ],
       config: {
