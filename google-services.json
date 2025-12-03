@@ -1,0 +1,40 @@
+{
+  "project_info": {
+    "project_number": "701532646484",
+    "firebase_url": "https://yoursapp-new-default-rtdb.firebaseio.com",
+    "project_id": "yoursapp-new",
+    "storage_bucket": "yoursapp-new.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:701532646484:android:ff9d3542840f49e80e51c1",
+        "android_client_info": {
+          "package_name": "com.rafox2500.Yoursapp"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "701532646484-7ii37i8pur9itc4kv2ntv46ojud4hoc7.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD9FQVeVA0HdTzEheR-vDi9tP4Pds9Wp38"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "701532646484-7ii37i8pur9itc4kv2ntv46ojud4hoc7.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

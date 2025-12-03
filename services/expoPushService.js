@@ -1,7 +1,8 @@
 import * as Notifications from 'expo-notifications';
-import { ref, set, get } from 'firebase/database';
+import { ref, set, get, update } from 'firebase/database';
 import { database } from './firebase';
 import Constants from 'expo-constants';
+import { Platform } from 'react-native';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -13,9 +14,16 @@ Notifications.setNotificationHandler({
 
 export async function registerForPushNotifications() {
   try {
+    // Debug logs to see what the device is reporting
+    console.log("Debug - Device Info:", {
+        isDevice: Constants.isDevice,
+        model: Constants.deviceName,
+        platform: Platform.OS
+    });
+
+    // FIX: Removed the error throw. We now just log a warning and PROCEED.
     if (!Constants.isDevice) {
-      console.log('Must use physical device for Push Notifications');
-      return null;
+      console.warn("⚠️ Constants.isDevice returned false. Proceeding anyway because you are on a physical device.");
     }
 
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
@@ -27,31 +35,35 @@ export async function registerForPushNotifications() {
     }
 
     if (finalStatus !== 'granted') {
-      return null;
+      throw new Error('Permission not granted for push notifications. Please enable them in settings.');
     }
 
+    // Attempt to get the token
     const token = await Notifications.getExpoPushTokenAsync({
       projectId: '4454e141-2909-4013-ae2d-51a4623c7a0f',
     });
 
+    console.log("✅ Generated Token:", token.data);
     return token.data;
   } catch (error) {
     console.error('Error registering for push notifications:', error);
-    return null;
+    // Throw the real error (like "SenderId mismatch" or "Missing Permissions") so we can see it
+    throw error;
   }
 }
 
 export async function saveUserToken(userId, token, userData = {}) {
   try {
-    await set(ref(database, `users/${userId}`), {
+    await update(ref(database, `users/${userId}`), {
       expoPushToken: token,
       ...userData,
       lastUpdated: Date.now(),
     });
+    console.log(`Token saved for user ${userId}`);
     return true;
   } catch (error) {
     console.error('Error saving user token:', error);
-    return false;
+    throw error;
   }
 }
 

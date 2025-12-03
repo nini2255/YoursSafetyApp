@@ -32,16 +32,17 @@ export default {
       },
       edgeToEdgeEnabled: true,
       package: "com.rafox2500.Yoursapp",
-      // 👇 CRITICAL: This permissions section fixes your specific error
+      // 👇 ADD THIS LINE (Ensure google-services.json is in your root folder)
+      googleServicesFile: "./google-services.json", 
       permissions: [
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
         "ACCESS_BACKGROUND_LOCATION",
         "ACCESS_MEDIA_LOCATION",
         "ACCESS_NOTIFICATION_POLICY",
-        "FOREGROUND_SERVICE",           // <--- REQUIRED for background tasks
-        "FOREGROUND_SERVICE_LOCATION",  // <--- REQUIRED for Android 14+ specific location tracking
-        "RECORD_AUDIO" // <--- Add this line for Android
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION",
+        "RECORD_AUDIO"
       ],
       config: {
         googleMaps: {

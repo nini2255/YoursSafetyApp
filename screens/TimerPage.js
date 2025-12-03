@@ -24,7 +24,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
 import BackgroundTimer from 'react-native-background-timer';
-import { sendBulkPushNotifications, getUserToken } from '../services/expoPushService'; // NEW
+import { sendBulkPushNotifications, getUserToken } from '../services/expoPushService';
 
 import { 
   TIMER_EXPIRED_CATEGORY, 
@@ -37,7 +37,7 @@ const screenWidth = Dimensions.get('window').width;
 const LAST_TIMER_KEY = '@last_timer_duration';
 const TIMER_END_TIME_KEY = '@timer_end_time';
 const TIMER_TOTAL_SECONDS_KEY = '@timer_total_seconds';
-const TIMER_AUTO_ALERT_KEY = '@timer_auto_alert_enabled'; // NEW
+const TIMER_AUTO_ALERT_KEY = '@timer_auto_alert_enabled'; 
 const NOTIFICATION_CHANNEL_ID = 'timer-channel';
 
 const mainColor = '#F87171';
@@ -141,7 +141,7 @@ export const TimerPage = ({ navigation }) => {
   const [isLoadingDefaults, setIsLoadingDefaults] = useState(true);
   const [isStarting, setIsStarting] = useState(false);
   
-  const [isAutoAlertEnabled, setIsAutoAlertEnabled] = useState(false); // NEW STATE
+  const [isAutoAlertEnabled, setIsAutoAlertEnabled] = useState(false); 
 
   const timerFinishTimeRef = useRef(null);
   const appState = useRef(AppState.currentState);
@@ -163,7 +163,7 @@ export const TimerPage = ({ navigation }) => {
           setSelectedMinute(Number(minute) || 0);
           setSelectedSecond(Number(second) || 0);
         }
-        // NEW: Load toggle preference
+        // Load toggle preference
         const autoAlert = await AsyncStorage.getItem(TIMER_AUTO_ALERT_KEY);
         if (autoAlert !== null) {
             setIsAutoAlertEnabled(JSON.parse(autoAlert));
@@ -371,15 +371,19 @@ export const TimerPage = ({ navigation }) => {
     }
   };
 
-  // NEW: Function to handle auto-sending logic
+  // UPDATED: Logic to return boolean based on success
   const sendAutomaticPush = async () => {
       const contactsWithApp = contacts.filter(c => c.linkedAppUserId);
-      if (contactsWithApp.length === 0) return;
+      if (contactsWithApp.length === 0) {
+          console.log("No linked contacts found for auto-push.");
+          return false;
+      }
 
       try {
           const location = await Location.getCurrentPositionAsync({});
           const { latitude, longitude } = location.coords;
-          const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`;
+          // FIXED: Correct URL
+          const googleMapsUrl = `http://googleusercontent.com/maps.google.com/?q=${latitude},${longitude}`;
           
           const tokens = [];
           for (const contact of contactsWithApp) {
@@ -395,23 +399,35 @@ export const TimerPage = ({ navigation }) => {
                   { latitude, longitude, url: googleMapsUrl, type: 'TIMER_EXPIRED' }
               );
               console.log("Auto timer push sent.");
+              return true; // Success!
           }
       } catch (error) {
           console.error("Failed to send auto push:", error);
       }
+      return false; // Failed
   };
 
+  // UPDATED: Await result and handle modal visibility
   const onTimerComplete = async () => {
     try { await Notifications.cancelAllScheduledNotificationsAsync(); } catch(e) {}
     await cleanupTimerState();
     Vibration.vibrate(Platform.OS === 'android' ? [0, 500, 500, 500] : [500, 500, 500]);
     
-    // NEW: Trigger auto-alert if enabled
+    let autoSent = false;
+
+    // Trigger auto-alert if enabled
     if (isAutoAlertEnabled) {
-        sendAutomaticPush();
+        // Wait for the result
+        autoSent = await sendAutomaticPush();
     }
 
-    setTimerCompleteModalVisible(true);
+    if (autoSent) {
+        // If sent successfully, show alert and DO NOT open the modal
+        Alert.alert("Timer Expired", "Automatic alerts sent to your linked contacts.");
+    } else {
+        // If not sent (or disabled), open the manual options
+        setTimerCompleteModalVisible(true);
+    }
   };
 
   const requestLocationPermissionsAsync = async () => {
@@ -493,7 +509,7 @@ export const TimerPage = ({ navigation }) => {
           <TouchableOpacity style={styles.presetButton} onPress={() => setPreset(1, 0, 0)}><Text style={styles.presetButtonText}>1:00:00</Text></TouchableOpacity>
         </View>
         
-        {/* NEW: Toggle for Auto Alert */}
+        {/* Toggle for Auto Alert */}
         <View style={styles.toggleContainer}>
             <Text style={styles.toggleLabel}>Auto-notify App Users</Text>
             <Switch 

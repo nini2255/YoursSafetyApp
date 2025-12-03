@@ -7,7 +7,7 @@ import {
   ScrollView,
   Share,
   Alert,
-  Platform
+  ActivityIndicator
 } from 'react-native';
 import { PageHeader } from '../components/PageHeader';
 import { useAuth } from '../context/AuthContext';
@@ -15,8 +15,11 @@ import {
   MaterialIcons, 
   Ionicons, 
 } from '@expo/vector-icons';
-import { getAuth } from 'firebase/auth'; // Direct Firebase Access
+import { getAuth } from 'firebase/auth'; 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// IMPORT NEW SERVICES
+import { registerForPushNotifications, saveUserToken } from '../services/expoPushService';
 
 // Theme Colors
 const mainColor = '#F87171';
@@ -28,6 +31,7 @@ const subTextColor = '#6B7280';
 export const SettingsPage = ({ navigation }) => {
   const authContext = useAuth();
   const [displayUserId, setDisplayUserId] = useState('Loading...');
+  const [isSyncing, setIsSyncing] = useState(false); // New state for sync button
 
   // Robust ID Fetching Logic
   useEffect(() => {
@@ -51,7 +55,7 @@ export const SettingsPage = ({ navigation }) => {
 
       // 3. Try getting it from AsyncStorage (fallback)
       try {
-        const storedId = await AsyncStorage.getItem('userId'); // Adjust key if you use a different one
+        const storedId = await AsyncStorage.getItem('userId'); 
         if (storedId) {
           setDisplayUserId(storedId);
           return;
@@ -71,12 +75,39 @@ export const SettingsPage = ({ navigation }) => {
     }
     
     try {
-      const result = await Share.share({
+      await Share.share({
         message: `Hey! I'm setting up my safety app. Please link my User ID in your contact settings so I can send you automatic alerts: ${displayUserId}`,
         title: 'My Safety App User ID',
       });
     } catch (error) {
       Alert.alert('Error', error.message);
+    }
+  };
+
+  // UPDATED: Manual Sync Function with better error handling
+  const handleManualSync = async () => {
+    if (displayUserId === 'Not Connected' || displayUserId === 'Loading...') {
+        Alert.alert("Error", "You must be logged in to sync.");
+        return;
+    }
+
+    setIsSyncing(true);
+    try {
+        console.log("Starting manual sync...");
+        // 1. Get a fresh token (Throws specific error if fails)
+        const token = await registerForPushNotifications();
+        
+        // 2. Force save to Firebase
+        await saveUserToken(displayUserId, token);
+        
+        Alert.alert("Sync Successful", "✅ You are now visible on the safety network. Your contacts can now link this ID.");
+        
+    } catch (error) {
+        console.error(error);
+        // Show the REAL error message to the user
+        Alert.alert("Sync Failed", error.message || "Unknown error occurred");
+    } finally {
+        setIsSyncing(false);
     }
   };
 
@@ -110,15 +141,36 @@ export const SettingsPage = ({ navigation }) => {
                         Share this ID with your contacts so they can link you for automatic alerts.
                     </Text>
                 </View>
-                <TouchableOpacity 
-                  style={[styles.shareButton, (displayUserId === 'Not Connected') && { opacity: 0.5 }]} 
-                  onPress={handleShareId}
-                  disabled={displayUserId === 'Not Connected'}
-                >
-                    <Ionicons name="share-outline" size={22} color="white" />
-                    <Text style={styles.shareButtonText}>Share</Text>
-                </TouchableOpacity>
+                <View style={styles.buttonGroup}>
+                    <TouchableOpacity 
+                    style={[styles.shareButton, (displayUserId === 'Not Connected') && { opacity: 0.5 }]} 
+                    onPress={handleShareId}
+                    disabled={displayUserId === 'Not Connected'}
+                    >
+                        <Ionicons name="share-outline" size={20} color="white" />
+                        <Text style={styles.shareButtonText}>Share</Text>
+                    </TouchableOpacity>
+                </View>
             </View>
+            
+            {/* Sync Button */}
+            <TouchableOpacity 
+                style={styles.syncButton} 
+                onPress={handleManualSync}
+                disabled={isSyncing || displayUserId === 'Not Connected'}
+            >
+                {isSyncing ? (
+                    <ActivityIndicator size="small" color="#F87171" />
+                ) : (
+                    <>
+                        <Ionicons name="cloud-upload-outline" size={20} color="#F87171" style={{marginRight: 8}} />
+                        <Text style={styles.syncButtonText}>Sync Network Status</Text>
+                    </>
+                )}
+            </TouchableOpacity>
+            <Text style={styles.syncHelper}>
+                Tap this if your contacts see "ID Not Found" errors.
+            </Text>
         </View>
 
         {/* General Settings */}
@@ -180,7 +232,7 @@ export const SettingsPage = ({ navigation }) => {
           </View>
         </View>
 
-        <Text style={styles.versionText}>Version 1.0.3</Text>
+        <Text style={styles.versionText}>Version 1.0.4</Text>
       </ScrollView>
     </View>
   );
@@ -252,19 +304,47 @@ const styles = StyleSheet.create({
     color: subTextColor,
     lineHeight: 14,
   },
+  buttonGroup: {
+      justifyContent: 'center',
+      alignItems: 'center',
+  },
   shareButton: {
     backgroundColor: mainColor,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
+    flexDirection: 'row',
   },
   shareButtonText: {
     color: 'white',
     fontWeight: '600',
     fontSize: 12,
-    marginTop: 2,
+    marginLeft: 4,
+  },
+  syncButton: {
+      marginTop: 12,
+      backgroundColor: '#FEF2F2',
+      borderRadius: 12,
+      paddingVertical: 12,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: '#FECACA',
+  },
+  syncButtonText: {
+      color: '#B91C1C',
+      fontWeight: '600',
+      fontSize: 14,
+  },
+  syncHelper: {
+      fontSize: 11,
+      color: subTextColor,
+      textAlign: 'center',
+      marginTop: 6,
+      fontStyle: 'italic',
   },
   itemContainer: {
     flexDirection: 'row',

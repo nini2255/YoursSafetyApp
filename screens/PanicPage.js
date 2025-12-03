@@ -90,7 +90,7 @@ export const PanicPage = ({ navigation }) => {
     }
   };
 
-const triggerPanicAlert = async () => {
+  const triggerPanicAlert = async () => {
     if (contacts.length === 0) {
       Alert.alert(
         'No Emergency Contacts',
@@ -109,10 +109,13 @@ const triggerPanicAlert = async () => {
       // 1. Get Location
       let location = await Location.getCurrentPositionAsync({});
       const { latitude, longitude } = location.coords;
-      const googleMapsUrl = `http://googleusercontent.com/maps.google.com/?q=${latitude},${longitude}`; // Fixed URL format
+      // FIXED: Corrected URL format
+      const googleMapsUrl = `http://googleusercontent.com/maps.google.com/?q=${latitude},${longitude}`;
       const message = `Emergency! I need help. My current location is: ${googleMapsUrl}`;
 
-      // 2. Automatic Push Notification (If enabled)
+      // 2. Automatic Push Notification Logic
+      let autoAlertSent = false;
+
       if (isAutoAlertEnabled) {
           const contactsWithApp = contacts.filter(c => c.linkedAppUserId);
           
@@ -136,19 +139,32 @@ const triggerPanicAlert = async () => {
                       { latitude, longitude, url: googleMapsUrl, type: 'PANIC' }
                   );
                   console.log("Automatic push alerts sent successfully.");
-                  
-                  // SUCCESS FEEDBACK & EXIT
-                  // This prevents the code from continuing to the SMS block
-                  Alert.alert("Alert Sent", "Automatic alerts sent to linked contacts.");
-                  return; 
+                  autoAlertSent = true;
+              } else {
+                  console.log("Contacts linked, but no push tokens found.");
               }
           } else {
-             // Optional: Alert user if they enabled auto alerts but have no linked contacts
-             console.log("Auto alert enabled but no linked contacts found. Falling back to SMS.");
+              console.log("Auto alert enabled, but no contacts have a linked App ID.");
           }
       }
 
-      // 3. Manual SMS Fallback (Runs if Auto Alert is DISABLED or if no linked contacts found)
+      // 3. Handle Result & Fallback
+      if (autoAlertSent) {
+          // SUCCESS: Stop here. Do NOT open SMS.
+          Alert.alert("Alert Sent", "Automatic alerts sent to linked contacts.");
+          return; 
+      } 
+      
+      // FALLBACK: Only runs if Auto Alert failed or was disabled
+      // If the user *wanted* auto alerts but they failed (e.g. no linked contacts), let them know.
+      if (isAutoAlertEnabled && !autoAlertSent) {
+          Alert.alert(
+              "Automatic Alert Failed",
+              "Could not send automatic alerts (no linked contacts found). Opening SMS instead."
+          );
+      }
+
+      // 4. Manual SMS Fallback
       const recipients = contacts.map(c => c.phone);
       const isAvailable = await SMS.isAvailableAsync();
       
@@ -191,7 +207,7 @@ const triggerPanicAlert = async () => {
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Emergency</Text>
         <Image
-          source={{ uri: '[https://placehold.co/40x40/F8C8DC/333333?text=U](https://placehold.co/40x40/F8C8DC/333333?text=U)' }}
+          source={{ uri: 'https://placehold.co/40x40/F8C8DC/333333?text=U' }}
           style={styles.profileImage}
         />
       </View>
@@ -224,7 +240,6 @@ const triggerPanicAlert = async () => {
             This will alert your emergency contacts and share your location.
           </Text>
           
-          {/* NEW: Auto Alert Toggle */}
           <View style={styles.toggleContainer}>
               <Text style={styles.toggleLabel}>Send automatic app alerts</Text>
               <Switch 
