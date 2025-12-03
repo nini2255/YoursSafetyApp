@@ -10,7 +10,6 @@ import {
   Alert,
 } from 'react-native';
 
-
 import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -113,29 +112,31 @@ function AppContent() {
     volumeHoldDuration,
   });
 
-  // --- Initialize geofencing and push notifications ---
+  // --- Initialize geofencing and push notifications (MODIFIED) ---
   useEffect(() => {
-    const initializeGeofencing = async () => {
+    const initializeServices = async () => {
+      // 1. Ensure user is logged in before trying to save token to database
+      if (!user?.uid) return;
+
       try {
         const token = await registerForPushNotifications();
         if (token) {
-          let userId = await AsyncStorage.getItem('userId');
-          if (!userId) {
-            userId = `user_${Date.now()}`;
-            await AsyncStorage.setItem('userId', userId);
-          }
-          await saveUserToken(userId, token);
+          // 2. Use the REAL Firebase User ID, not a random one
+          await saveUserToken(user.uid, token);
+          console.log('Push token saved for user:', user.uid);
         }
+        
         const activeGeofences = await getActiveGeofences();
         if (activeGeofences.length > 0) {
           await startGeofenceMonitoring(activeGeofences);
         }
       } catch (error) {
-        console.error('Error initializing geofencing:', error);
+        console.error('Error initializing services:', error);
       }
     };
-    initializeGeofencing();
-  }, []);
+    
+    initializeServices();
+  }, [user]); // Add 'user' to dependency array
 
   useEffect(() => {
     settingsRef.current = {

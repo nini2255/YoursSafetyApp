@@ -1,6 +1,13 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { 
+  createUserWithEmailAndPassword, 
+  signInWithEmailAndPassword, 
+  signOut,
+  onAuthStateChanged
+} from 'firebase/auth';
+import { auth } from '../services/firebase'; 
 
 const AuthContext = createContext();
 
@@ -15,29 +22,18 @@ export const useAuth = () => {
 // Storage key for the *email* of the last logged-in user
 const CURRENT_USER_KEY = '@current_user_email';
 
-// --- ADDED: Helper function to migrate old data ---
-// This will find all old keys and move them to new, user-specific keys
+// Helper function to migrate old data
 const migrateOldData = async (email, oldUserData) => {
   console.log('Starting data migration for user:', email);
   try {
-    // 1. Define all old keys
     const oldKeys = [
-      '@journal_entries',
-      '@emergency_contacts',
-      '@autofill_people',
-      '@autofill_locations',
-      '@fake_call_caller_name',
-      '@fake_call_screen_hold_enabled',
-      '@fake_call_volume_hold_enabled',
-      '@fake_call_screen_hold_duration',
-      '@fake_call_volume_hold_duration',
-      '@discreet_mode_enabled',
-      '@sudoku_screen_enabled',
-      '@bypass_code',
-      '@two_finger_trigger_enabled',
+      '@journal_entries', '@emergency_contacts', '@autofill_people',
+      '@autofill_locations', '@fake_call_caller_name', '@fake_call_screen_hold_enabled',
+      '@fake_call_volume_hold_enabled', '@fake_call_screen_hold_duration',
+      '@fake_call_volume_hold_duration', '@discreet_mode_enabled',
+      '@sudoku_screen_enabled', '@bypass_code', '@two_finger_trigger_enabled',
     ];
 
-    // 2. Define their corresponding new keys
     const newKeysMap = {
       '@user_credentials': `@user_creds_${email}`,
       '@journal_entries': `@${email}_journal_entries`,
@@ -55,16 +51,11 @@ const migrateOldData = async (email, oldUserData) => {
       '@two_finger_trigger_enabled': `@${email}_two_finger_trigger_enabled`,
     };
     
-    // 3. Get all old data
     const oldData = await AsyncStorage.multiGet(oldKeys);
-    
-    // 4. Prepare new data for multiSet
     const newData = [];
     
-    // Add the user credentials
     newData.push([newKeysMap['@user_credentials'], JSON.stringify(oldUserData)]);
     
-    // Add all other data
     oldData.forEach(([key, value]) => {
       if (value !== null) {
         const newKey = newKeysMap[key];
@@ -74,27 +65,35 @@ const migrateOldData = async (email, oldUserData) => {
       }
     });
 
-    // 5. Save all new data
     await AsyncStorage.multiSet(newData);
-    
-    // 6. Remove all old data (plus the old login flag)
     await AsyncStorage.multiRemove([...oldKeys, '@user_credentials', '@logged_in']);
-    
     console.log('Data migration complete.');
 
   } catch (e) {
     console.error('Data migration failed:', e);
-    // Don't block login, but alert the user
-    Alert.alert('Data Migration Failed', 'Could not migrate all old app data. Some settings or entries may be missing.');
+    Alert.alert('Data Migration Failed', 'Could not migrate all old app data.');
   }
 };
 
-
 export const AuthProvider = ({ children }) => {
-  // ... (useState, useEffect for loadUserFromStorage remain the same) ...
   const [user, setUser] = useState(null); 
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Sync Firebase Auth State
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      if (firebaseUser) {
+        setUser(prevUser => {
+          if (prevUser) {
+            return { ...prevUser, uid: firebaseUser.uid };
+          }
+          return prevUser;
+        });
+      }
+    });
+    return unsubscribe;
+  }, []);
 
   useEffect(() => {
     const loadUserFromStorage = async () => {
@@ -104,6 +103,9 @@ export const AuthProvider = ({ children }) => {
           const credsString = await AsyncStorage.getItem(`@user_creds_${userEmail}`);
           if (credsString) {
             const userData = JSON.parse(credsString);
+            if (auth.currentUser) {
+              userData.uid = auth.currentUser.uid;
+            }
             setUser(userData);
             setIsLoggedIn(true);
           } else {
@@ -120,54 +122,81 @@ export const AuthProvider = ({ children }) => {
     loadUserFromStorage();
   }, []);
 
-  // --- MODIFIED: The login function now handles migration ---
   const login = async (email, password) => {
     try {
-      // 1. Try logging in with the NEW system first
+      // 1. Local Login Check
+      let userData = null;
+      let isOldUser = false;
+
       const newCredsString = await AsyncStorage.getItem(`@user_creds_${email}`);
       
       if (newCredsString) {
-        const userData = JSON.parse(newCredsString);
-        if (userData.password === password) {
-          setUser(userData);
-          setIsLoggedIn(true);
-          await AsyncStorage.setItem(CURRENT_USER_KEY, email);
-          return; // Login successful
-        } else {
-          throw new Error('Invalid email or password.');
+        userData = JSON.parse(newCredsString);
+        if (userData.password !== password) {
+          throw new Error('Invalid email or password (Local Check).');
+        }
+      } else {
+        const oldCredsString = await AsyncStorage.getItem('@user_credentials');
+        if (oldCredsString) {
+          const oldUserData = JSON.parse(oldCredsString);
+          if (oldUserData.email === email && oldUserData.password === password) {
+            isOldUser = true;
+            userData = oldUserData;
+          }
         }
       }
 
-      // 2. NEW system login failed. Try migrating from the OLD system.
-      const oldCredsString = await AsyncStorage.getItem('@user_credentials');
-      
-      if (oldCredsString) {
-        const oldUserData = JSON.parse(oldCredsString);
+      if (!userData) {
+        throw new Error('User not found locally. Please sign up.');
+      }
+
+      if (isOldUser) {
+        await migrateOldData(email, userData);
+      }
+
+      // 2. Firebase Login
+      let firebaseUid = null;
+      try {
+        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        firebaseUid = userCredential.user.uid;
+      } catch (fbError) {
+        console.error('Firebase Login Error:', fbError.code, fbError.message);
         
-        // Check if old email and password match
-        if (oldUserData.email === email && oldUserData.password === password) {
-          // This is the old user! Start migration.
-          await migrateOldData(email, oldUserData);
-          
-          // Now log them in
-          setUser(oldUserData);
-          setIsLoggedIn(true);
-          await AsyncStorage.setItem(CURRENT_USER_KEY, email);
-          return; // Migration and login successful
+        // Handle specific errors
+        if (fbError.code === 'auth/user-not-found' || fbError.code === 'auth/invalid-credential') {
+          console.log('Local user found but not in Firebase. Creating Firebase account...');
+          try {
+            const newUserCred = await createUserWithEmailAndPassword(auth, email, password);
+            firebaseUid = newUserCred.user.uid;
+          } catch (createError) {
+             console.error('Sync failed:', createError);
+             if (createError.code === 'auth/operation-not-allowed') {
+                 Alert.alert('Configuration Error', 'Email/Password login is not enabled in Firebase Console.');
+             }
+          }
+        } else if (fbError.code === 'auth/operation-not-allowed') {
+             Alert.alert('Configuration Error', 'Email/Password login is disabled in Firebase Console. Please enable it to generate a User ID.');
+        } else if (fbError.code === 'auth/invalid-email') {
+             Alert.alert('Invalid Email', 'The email format is incorrect. Please update your profile with a valid email.');
+        } else {
+             // If it's a network error or something else, we let them login locally but warn them
+             Alert.alert('Connection Warning', 'Could not connect to server. User ID will not be available.');
         }
       }
-      
-      // 3. Both new and old systems failed. User not found.
-      throw new Error('User not found. Please sign up.');
+
+      // 3. Update State
+      const finalUser = { ...userData, uid: firebaseUid };
+      setUser(finalUser);
+      setIsLoggedIn(true);
+      await AsyncStorage.setItem(CURRENT_USER_KEY, email);
 
     } catch (e) {
       console.error('Login error:', e);
-      throw e; // Re-throw for the login screen to catch
+      throw e; 
     }
   };
 
   const signup = async (credentials) => {
-    // ... (signup function remains the same)
     const { email, password } = credentials;
     try {
       const existingUser = await AsyncStorage.getItem(`@user_creds_${email}`);
@@ -175,11 +204,32 @@ export const AuthProvider = ({ children }) => {
         throw new Error('An account with this email already exists.');
       }
       
+      let firebaseUid = null;
+      try {
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        firebaseUid = userCredential.user.uid;
+      } catch (fbError) {
+        console.error('Firebase Signup Error:', fbError);
+        if (fbError.code === 'auth/email-already-in-use') {
+           // If they exist in Firebase but not locally, sign them in
+           const userCredential = await signInWithEmailAndPassword(auth, email, password);
+           firebaseUid = userCredential.user.uid;
+        } else if (fbError.code === 'auth/operation-not-allowed') {
+           throw new Error('Email/Password signup is disabled in Firebase Console.');
+        } else if (fbError.code === 'auth/invalid-email') {
+           throw new Error('Please enter a valid email address.');
+        } else {
+           throw new Error(fbError.message);
+        }
+      }
+
+      const userWithId = { ...credentials, uid: firebaseUid };
       await AsyncStorage.setItem(`@user_creds_${email}`, JSON.stringify(credentials));
       
-      setUser(credentials);
+      setUser(userWithId);
       setIsLoggedIn(true);
       await AsyncStorage.setItem(CURRENT_USER_KEY, email);
+
     } catch (e) {
       console.error('Signup error:', e);
       throw e; 
@@ -187,8 +237,8 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = async () => {
-    // ... (logout function remains the same)
      try {
+      await signOut(auth);
       await AsyncStorage.removeItem(CURRENT_USER_KEY);
       setUser(null);
       setIsLoggedIn(false);
@@ -199,11 +249,15 @@ export const AuthProvider = ({ children }) => {
   };
   
   const updateUser = async (newUserData) => {
-    // ... (updateUser function remains the same)
     if (!user) return;
     try {
       const updatedUser = { ...user, ...newUserData };
       await AsyncStorage.setItem(`@user_creds_${user.email}`, JSON.stringify(updatedUser));
+      
+      if (auth.currentUser) {
+        updatedUser.uid = auth.currentUser.uid;
+      }
+      
       setUser(updatedUser);
       Alert.alert('Success', 'Profile updated.');
     } catch (e) {

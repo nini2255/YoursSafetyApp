@@ -8,42 +8,41 @@ import {
   Alert,
   Image,
   SafeAreaView,
-  ScrollView, // For scrollable content
-  KeyboardAvoidingView, // For keyboard handling
-  Platform // To check OS for KeyboardAvoidingView
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform
 } from 'react-native';
-import { LockIcon, MailIcon } from '../components/Icons'; // Assuming icons are in ../components/Icons.js
-import { useAuth } from '../context/AuthContext'; // Import useAuth
+import { LockIcon, MailIcon } from '../components/Icons'; 
+import { useAuth } from '../context/AuthContext'; 
 
 export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [isLoading, setIsLoading] = useState(false); // Added loading state
-  const auth = useAuth(); // Get auth context
+  const [isLoading, setIsLoading] = useState(false);
+  const auth = useAuth(); 
 
   const handleLogin = async () => {
+    // Basic validation
     if (!email || !password) {
       Alert.alert('Validation', 'Please enter both email and password.');
       return;
     }
     
-    setIsLoading(true); // Set loading true
+    // Check if it looks like an email
+    if (!email.includes('@')) {
+      Alert.alert('Invalid Email', 'Please enter a valid email address (e.g. name@email.com) to connect to the server.');
+      return;
+    }
+    
+    setIsLoading(true); 
     
     try {
-      // --- MODIFIED: Use auth.login ---
-      // We pass the email (trimmed) and password to the context
       await auth.login(email.trim(), password);
-      
-      // navigation.replace('Home') is no longer needed here.
-      // App.js listens to the `isLoggedIn` state from AuthContext
-      // and will automatically navigate to the 'Home' screen.
-      
     } catch (error) {
       console.error('Login error:', error);
-      // Display the error message thrown from AuthContext
       Alert.alert('Login Failed', error.message || 'Invalid email or password.');
     } finally {
-      setIsLoading(false); // Set loading false
+      setIsLoading(false); 
     }
   };
 
@@ -51,7 +50,6 @@ export default function LoginScreen({ navigation }) {
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.topShape}></View>
 
-      {/* --- ADDED KeyboardAvoidingView Wrapper --- */}
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -59,7 +57,7 @@ export default function LoginScreen({ navigation }) {
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.container}
-          keyboardShouldPersistTaps="handled" // Good for dismissing keyboard on tap
+          keyboardShouldPersistTaps="handled" 
         >
           <Image
             source={require('../assets/logo_version1.png')}
@@ -69,18 +67,21 @@ export default function LoginScreen({ navigation }) {
           <Text style={styles.welcomeTitle}>Welcome back!</Text>
           <Text style={styles.welcomeSubtitle}>Log in to your existing account of YoursApp</Text>
 
+          {/* Email Input */}
           <View style={styles.inputGroup}>
             <MailIcon style={styles.inputIcon} color="#9CA3AF" />
             <TextInput
               style={styles.input}
-              placeholder="Username"
+              placeholder="Email Address" // Changed from Username
               placeholderTextColor="#9CA3AF"
               value={email}
               onChangeText={setEmail}
-              keyboardType="email-address"
+              keyboardType="email-address" // Enforces @ symbol on keyboard
               autoCapitalize="none"
             />
           </View>
+
+          {/* Password Input */}
           <View style={styles.inputGroup}>
             <LockIcon style={styles.inputIcon} color="#9CA3AF" />
             <TextInput
@@ -97,7 +98,6 @@ export default function LoginScreen({ navigation }) {
             <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
           </TouchableOpacity>
 
-          {/* --- MODIFIED: Button shows loading state --- */}
           <TouchableOpacity
             style={[styles.loginButton, isLoading && styles.buttonDisabled]}
             onPress={handleLogin}
@@ -112,11 +112,9 @@ export default function LoginScreen({ navigation }) {
 
           <View style={styles.socialButtonsContainer}>
             <TouchableOpacity style={styles.socialButton}>
-              {/* <Image source={require('../assets/facebook-icon.png')} style={styles.socialIcon} /> */}
               <Text style={styles.socialButtonText}>Facebook</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[styles.socialButton, styles.googleButton]}>
-              {/* <Image source={require('../assets/google-icon.png')} style={styles.socialIcon} /> */}
               <Text style={styles.socialButtonText}>Google</Text>
             </TouchableOpacity>
           </View>
@@ -129,8 +127,6 @@ export default function LoginScreen({ navigation }) {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
-      {/* --- END KeyboardAvoidingView Wrapper --- */}
-
     </SafeAreaView>
   );
 }
@@ -225,7 +221,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   buttonDisabled: {
-    backgroundColor: '#FECACA', // Lighter pink
+    backgroundColor: '#FECACA',
   },
   orConnectText: {
     fontSize: 14,
@@ -249,14 +245,7 @@ const styles = StyleSheet.create({
     height: 50,
     width: '48%', 
   },
-  googleButton: {
-    // Specific styles for Google if needed
-  },
-  socialIcon: {
-    width: 20,
-    height: 20,
-    marginRight: 10,
-  },
+  googleButton: {},
   socialButtonText: {
     fontSize: 16,
     color: '#333',
