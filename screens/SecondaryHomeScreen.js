@@ -1,8 +1,9 @@
 import React, { useRef } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  Dimensions, SafeAreaView, StatusBar, Image
+  Dimensions, StatusBar, Image
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context'
 import { GestureDetector, Gesture, Directions } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';

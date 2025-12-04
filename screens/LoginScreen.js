@@ -7,11 +7,11 @@ import {
   StyleSheet, 
   Alert, 
   Image, 
-  SafeAreaView,
   ScrollView,
   KeyboardAvoidingView, // For keyboard handling
   Platform // To check OS for KeyboardAvoidingView
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context'
 import { LockIcon, MailIcon } from '../components/Icons'; // Assuming icons are in ../components/Icons.js
 import { useAuth } from '../context/AuthContext'; // Import useAuth
 

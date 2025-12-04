@@ -6,6 +6,7 @@ import { useEmergencyContacts } from '../context/EmergencyContactsContext';
 import { MenuIcon } from '../components/Icons';
 import AsyncStorage from '@react-native-async-storage/async-storage'; // ADDED AsyncStorage
 
+
 const DEFAULT_PANIC_DURATION = 3000; // 3 seconds in ms
 
 export const PanicPage = ({ navigation }) => {

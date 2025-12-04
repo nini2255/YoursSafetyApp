@@ -10,6 +10,7 @@ import Animated, {
   Easing,
   runOnJS, // <--- IMPORT THIS explicitly
 } from 'react-native-reanimated';
+import { SafeAreaView } from 'react-native-safe-area-context'
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 const PageContainer = ({ children }) => (
@@ -108,7 +109,7 @@ export const HomePage = ({
 
   return (
     <GestureDetector gesture={swipeUpGesture}>
-        <View style={{ flex: 1 }} {...panResponder.panHandlers}>
+        <View style={styles.pageContainer} {...panResponder.panHandlers}>
             <ImageBackground
                 source={require('../assets/logo version1.png')}
                 style={styles.backgroundImage}
@@ -121,7 +122,7 @@ export const HomePage = ({
                 activeOpacity={1}
                 >
                 <PageContainer>
-                    <Text style={styles.homeTitle}>Welcome to Yours</Text>
+                    <Text style={styles.homeTitle}>Welcome toYours</Text>
                     <Text style={styles.homeSubtitle}>You are in a safe space.</Text>
                     <Pressable
                     onPress={onNavigateToJournal}

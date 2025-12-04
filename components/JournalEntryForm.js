@@ -10,10 +10,10 @@ import {
   StyleSheet, 
   Alert, 
   ScrollView, 
-  Image, 
-  SafeAreaView,
+  Image,
   Platform // Added for status bar handling
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context'
 import * as ImagePicker from 'expo-image-picker';
 import { Audio, Video } from 'expo-av';
 import * as FileSystem from 'expo-file-system/legacy'; // Use legacy for deleteAsync

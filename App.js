@@ -3,7 +3,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   StyleSheet,
   View,
-  SafeAreaView,
   StatusBar,
   TouchableOpacity,
   Text,
@@ -14,7 +13,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { VolumeManager } from 'react-native-volume-manager';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppHeader } from './components/AppHeader';
 import { SideMenu } from './components/SideMenu';
 
@@ -387,7 +386,8 @@ function AppContent() {
               <>
                 <Stack.Screen name="Home">
                   {props => (
-                    <SafeAreaView style={styles.container}>
+                    <View 
+                    style={styles.container}>
                       <StatusBar barStyle="dark-content" backgroundColor="#FEF2F2" />
                       {!isFakeCallActive && !showSudoku && (
                         <AppHeader onMenuPress={() => setMenuOpen(true)} title="Yours" />
@@ -445,7 +445,7 @@ function AppContent() {
                           props.navigation.navigate(page);
                         }}
                       />
-                    </SafeAreaView>
+                    </View>
                   )}
                 </Stack.Screen>
 
