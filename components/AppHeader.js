@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MenuIcon } from './Icons';
 
 export const AppHeader = ({ onMenuPress, title }) => (
-  <SafeAreaView 
+  <SafeAreaView
     edges={['top']}
     style={styles.appHeader}>
     <TouchableOpacity onPress={onMenuPress} style={styles.headerButton}>
@@ -16,23 +16,22 @@ export const AppHeader = ({ onMenuPress, title }) => (
 );
 
 const styles = StyleSheet.create({
-  /* appHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#FFE4E6',
-    backgroundColor: '#FEF2F2',
-  }, */
   appHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: Platform.OS === 'ios' ? 0 : 16,
-    paddingLeft: Platform.OS === 'ios' ? 8 : 16,
     borderBottomWidth: 1,
     borderBottomColor: '#FFE4E6',
     backgroundColor: '#FEF2F2',
+    ...Platform.select({
+      ios: {
+        paddingBottom: 8,
+        paddingHorizontal: 16,
+      },
+      default: {
+        padding: 16,
+        justifyContent: 'space-between',
+      }
+    })    
   },
   headerTitle: {
     flex: 1,
@@ -41,9 +40,9 @@ const styles = StyleSheet.create({
     color: '#1F2937',
     textAlign: 'center',
   },
-  headerButton: {
+  /* headerButton: {
     padding: 8,
-  },
+  }, */
   headerSpacer: {
     width: 40,
   },

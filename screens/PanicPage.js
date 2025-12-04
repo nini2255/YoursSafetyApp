@@ -1,11 +1,11 @@
 import React, { useRef, useEffect, useState } from 'react'; // ADDED useEffect, useState
-import { View, Text, TouchableOpacity, StyleSheet, Alert, Animated, Image } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, Animated, Image, Platform } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 import * as SMS from 'expo-sms';
 import { useEmergencyContacts } from '../context/EmergencyContactsContext';
 import { MenuIcon } from '../components/Icons';
 import AsyncStorage from '@react-native-async-storage/async-storage'; // ADDED AsyncStorage
-
 
 const DEFAULT_PANIC_DURATION = 3000; // 3 seconds in ms
 
@@ -131,160 +131,166 @@ export const PanicPage = ({ navigation }) => {
       outputRange: [startOpacity, 0],
     }),
   });
-  
+
   // Calculate duration in seconds for display, defaulting to 3
   const displayDuration = Math.round(pressDuration / 1000) || 3;
 
   return (
-    <View style={styles.fullPage}>
-      <View style={styles.header}>
-       <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-          <MenuIcon color="#C70039" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Emergency</Text>
-        <Image
-          source={{ uri: 'https://placehold.co/40x40/F8C8DC/333333?text=U' }}
-          style={styles.profileImage}
-        />
-      </View>
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#F8F9FA' }}>
+      <View style={styles.fullPage}>
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+            <MenuIcon color="#C70039" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Emergency</Text>
+          {Platform.OS === 'android' ? <Image
+            source={{ uri: 'https://placehold.co/40x40/F8C8DC/333333?text=U' }}
+            style={styles.profileImage}
+          /> : <></>}
+        </View>
 
-      <View style={styles.pageContainer}>
-        {/* Placeholder for background elements from the image */}
-        <View style={styles.backgroundDecor}>
+        <View style={styles.pageContainer}>
+          {/* Placeholder for background elements from the image */}
+          <View style={styles.backgroundDecor}>
             <Text style={styles.backgroundIcon}>☀️</Text>
             <Text style={styles.backgroundIcon}>☁️</Text>
-        </View>
-
-        <View style={styles.content}>
-          <View style={styles.sosButtonContainer}>
-            <Animated.View style={createWaveStyle(1, 1.8, 0.3)} />
-            <Animated.View style={createWaveStyle(1, 2.4, 0.2)} />
-            <Animated.View style={createWaveStyle(1, 3.0, 0.1)} />
-            <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
-              <TouchableOpacity
-                style={styles.sosButton}
-                onPressIn={handlePressIn}
-                onPressOut={handlePressOut}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.sosButtonText}>SOS</Text>
-                {/* USE DYNAMIC DURATION FOR DISPLAY */}
-                <Text style={styles.sosButtonSubtext}>Press for {displayDuration} seconds</Text> 
-              </TouchableOpacity>
-            </Animated.View>
           </View>
-          <Text style={styles.calmText}>KEEP CALM!</Text>
-          <Text style={styles.panicSubtext}>
-            This will alert your emergency contacts and share your location.
-          </Text>
+
+          <View style={styles.content}>
+            <View style={styles.sosButtonContainer}>
+              <Animated.View style={createWaveStyle(1, 1.8, 0.3)} />
+              <Animated.View style={createWaveStyle(1, 2.4, 0.2)} />
+              <Animated.View style={createWaveStyle(1, 3.0, 0.1)} />
+              <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+                <TouchableOpacity
+                  style={styles.sosButton}
+                  onPressIn={handlePressIn}
+                  onPressOut={handlePressOut}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.sosButtonText}>SOS</Text>
+                  {/* USE DYNAMIC DURATION FOR DISPLAY */}
+                  <Text style={styles.sosButtonSubtext}>Press for {displayDuration} seconds</Text>
+                </TouchableOpacity>
+              </Animated.View>
+            </View>
+            <Text style={styles.calmText}>KEEP CALM!</Text>
+            <Text style={styles.panicSubtext}>
+              This will alert your emergency contacts and share your location.
+            </Text>
+          </View>
         </View>
       </View>
-    </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-    fullPage: {
-        flex: 1,
-        backgroundColor: '#F8F9FA'
-    },
-    header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 16,
-        paddingTop: 50, // SafeAreaView might be better
-        paddingBottom: 10,
-        backgroundColor: '#F8F9FA'
-    },
-    headerIcon: {
-        padding: 8,
-    },
-    headerTitle: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: '#C70039',
-        letterSpacing: 1,
-    },
-    profileImage: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-    },
-    pageContainer: {
-        flex: 1,
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 20,
-    },
-    backgroundDecor: {
-        position: 'absolute',
-        top: '10%',
-        width: '100%',
-        flexDirection: 'row',
-        justifyContent: 'space-around',
-        opacity: 0.2,
-    },
-    backgroundIcon: {
-        fontSize: 60,
-    },
-    content: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        width: '100%',
-    },
-    sosButtonContainer: {
-        justifyContent: 'center',
-        alignItems: 'center',
-        width: 200,
-        height: 200,
-        marginBottom: 40,
-    },
-    wave: {
-        position: 'absolute',
-        width: 200,
-        height: 200,
-        borderRadius: 100,
-        backgroundColor: 'rgba(255, 69, 58, 0.5)',
-    },
-    sosButton: {
-        width: 200,
-        height: 200,
-        borderRadius: 100,
-        backgroundColor: '#FF453A',
-        alignItems: 'center',
-        justifyContent: 'center',
-        elevation: 10,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 5 },
-        shadowOpacity: 0.3,
-        shadowRadius: 10,
-        borderWidth: 5,
-        borderColor: 'rgba(255, 255, 255, 0.3)',
-    },
-    sosButtonText: {
-        fontSize: 48,
-        fontWeight: 'bold',
-        color: 'white',
-        letterSpacing: 2,
-    },
-    sosButtonSubtext: {
-        fontSize: 14,
-        color: 'white',
-        marginTop: 4,
-    },
-    calmText: {
-        fontSize: 24,
-        fontWeight: '600',
-        color: '#FF453A',
-        textAlign: 'center',
-        marginBottom: 12,
-    },
-    panicSubtext: {
-        fontSize: 16,
-        color: '#6C757D',
-        textAlign: 'center',
-        maxWidth: '80%',
-    },
+  fullPage: {
+    flex: 1,
+    backgroundColor: '#F8F9FA'
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+/*      paddingTop: 50, // SafeAreaView might be better
+ */     paddingBottom: 10,
+    backgroundColor: '#F8F9FA'
+  },
+  headerIcon: {
+    padding: 8,
+    justifyContent: 'flex-start',
+    position: 'absolute',
+  },
+  headerTitle: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#C70039',
+    letterSpacing: 1,
+    textAlign: 'center',
+    paddingRight: 24, // to offset menu icon
+  },
+  profileImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+  },
+  pageContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  backgroundDecor: {
+    position: 'absolute',
+    top: '10%',
+    width: '100%',
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    opacity: 0.2,
+  },
+  backgroundIcon: {
+    fontSize: 60,
+  },
+  content: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: '100%',
+  },
+  sosButtonContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: 200,
+    height: 200,
+    marginBottom: 40,
+  },
+  wave: {
+    position: 'absolute',
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: 'rgba(255, 69, 58, 0.5)',
+  },
+  sosButton: {
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: '#FF453A',
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    borderWidth: 5,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  sosButtonText: {
+    fontSize: 48,
+    fontWeight: 'bold',
+    color: 'white',
+    letterSpacing: 2,
+  },
+  sosButtonSubtext: {
+    fontSize: 14,
+    color: 'white',
+    marginTop: 4,
+  },
+  calmText: {
+    fontSize: 24,
+    fontWeight: '600',
+    color: '#FF453A',
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  panicSubtext: {
+    fontSize: 16,
+    color: '#6C757D',
+    textAlign: 'center',
+    maxWidth: '80%',
+  },
 });

@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Text,
   Alert,
+  Platform
 } from 'react-native';
 import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
@@ -370,6 +371,8 @@ function AppContent() {
   }
 
   return (
+    <SafeAreaView edge = {['bottom']}
+    style={styles.bottomSafeArea}>
     <GestureHandlerRootView style={{ flex: 1 }}>
       <NavigationContainer ref={navigationRef}>
         <View
@@ -507,6 +510,7 @@ function AppContent() {
         </View>
       </NavigationContainer>
     </GestureHandlerRootView>
+    </SafeAreaView>
   );
 }
 
@@ -526,11 +530,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   bottomNav: {
-    height: 80,
+    height: Platform.OS === 'ios' ? '10%' : 80,
     flexDirection: 'row',
     borderTopWidth: 1,
     borderTopColor: '#FFE4E6',
     backgroundColor: 'white',
+    paddingBottom: '5%'
   },
   navButton: {
     flex: 1,
@@ -542,4 +547,8 @@ const styles = StyleSheet.create({
     color: '#4B5563',
     marginTop: 4,
   },
+  bottomSafeArea: {
+    backgroundColor: 'white',
+    flex: 1,
+  }
 });

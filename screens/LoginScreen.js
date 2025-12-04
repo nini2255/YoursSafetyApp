@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { 
-  View, 
-  Text, 
-  TextInput, 
-  TouchableOpacity, 
-  StyleSheet, 
-  Alert, 
-  Image, 
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  Alert,
+  Image,
   ScrollView,
   KeyboardAvoidingView, // For keyboard handling
   Platform // To check OS for KeyboardAvoidingView
@@ -26,18 +26,18 @@ export default function LoginScreen({ navigation }) {
       Alert.alert('Validation', 'Please enter both email and password.');
       return;
     }
-    
+
     setIsLoading(true); // Set loading true
-    
+
     try {
       // --- MODIFIED: Use auth.login ---
       // We pass the email (trimmed) and password to the context
       await auth.login(email.trim(), password);
-      
+
       // navigation.replace('Home') is no longer needed here.
       // App.js listens to the `isLoggedIn` state from AuthContext
       // and will automatically navigate to the 'Home' screen.
-      
+
     } catch (error) {
       console.error('Login error:', error);
       // Display the error message thrown from AuthContext
@@ -48,16 +48,16 @@ export default function LoginScreen({ navigation }) {
   };
 
   return (
-    <View style={{flex: 1, backgroundColor: '#FFF8F8'}}>
+    <View style={{ flex: 1, backgroundColor: '#FFF8F8' }}>
       <View style={styles.topShape}>
         <Image
-              source={require('../assets/logo_version1.png')} 
-              style={styles.illustration}
-              resizeMode="contain"
+          source={require('../assets/logo_version1.png')}
+          style={styles.illustration}
+          resizeMode="contain"
         />
       </View>
       <SafeAreaView style={styles.safeArea}>
-        
+
         {/* --- ADDED KeyboardAvoidingView Wrapper --- */}
         <KeyboardAvoidingView
           style={{ flex: 1 }}
@@ -99,8 +99,8 @@ export default function LoginScreen({ navigation }) {
               <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity 
-              style={[styles.loginButton, isLoading && styles.buttonDisabled]} 
+            <TouchableOpacity
+              style={[styles.loginButton, isLoading && styles.buttonDisabled]}
               onPress={handleLogin}
               disabled={isLoading}
             >
@@ -129,7 +129,7 @@ export default function LoginScreen({ navigation }) {
               </TouchableOpacity>
             </View>
           </ScrollView>
-        </KeyboardAvoidingView> 
+        </KeyboardAvoidingView>
         {/* --- END KeyboardAvoidingView Wrapper --- */}
 
       </SafeAreaView>
@@ -149,7 +149,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: 280, // Fixed height for consistent layout
-    backgroundColor: '#ffdedeff', 
+    backgroundColor: '#ffdedeff',
     borderBottomLeftRadius: 50,
     borderBottomRightRadius: 50,
   },
@@ -169,7 +169,7 @@ const styles = StyleSheet.create({
     width: '90%',
     marginTop: Platform.OS === 'ios' ? '20%' : 0,
     height: 220, // Adjusted height
-    marginBottom: 20, 
+    marginBottom: 20,
     alignSelf: 'center',
   },
   welcomeTitle: {
@@ -192,12 +192,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 25,
     borderWidth: 1,
-    borderColor: '#F87171', 
+    borderColor: '#F87171',
     height: 50,
     marginBottom: 15,
     paddingHorizontal: 15,
     width: '100%',
-    elevation: 2, 
+    elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
@@ -217,10 +217,10 @@ const styles = StyleSheet.create({
   },
   forgotPasswordText: {
     fontSize: 14,
-    color: '#F87171', 
+    color: '#F87171',
   },
   loginButton: {
-    backgroundColor: '#F87171', 
+    backgroundColor: '#F87171',
     borderRadius: 25,
     height: 50,
     justifyContent: 'center',
@@ -256,7 +256,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#F87171',
     height: 50,
-    width: '48%', 
+    width: '48%',
   },
   googleButton: {
     // Specific styles for Google if needed
@@ -279,7 +279,7 @@ const styles = StyleSheet.create({
   },
   signupLink: {
     fontSize: 14,
-    color: '#F87171', 
+    color: '#F87171',
     fontWeight: 'bold',
   },
 });
