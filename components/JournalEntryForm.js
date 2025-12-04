@@ -21,8 +21,6 @@ import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { Audio, Video } from 'expo-av';
 import { MoodSelection } from './MoodSelection'; 
-
-// --- IMPORTS FOR GALLERY FEATURE ---
 import { saveFileToGallery } from '../utils/fileSystem';
 import { insertMedia } from '../utils/db';
 
@@ -311,21 +309,17 @@ export const JournalEntryForm = ({ visible, entry, onClose, onSave, templateData
         let persistentUri = att.uri;
         let shouldInsertToDB = false;
 
-        // Check if it's already in our gallery folder (persistent)
         const alreadySaved = att.uri.includes('gallery/');
 
         if (!alreadySaved) {
            try {
-             // Move to persistent storage
              persistentUri = await saveFileToGallery(att.uri, att.type);
              shouldInsertToDB = true;
            } catch (error) {
              console.error("Failed to save media locally:", error);
-             // If save fails, warn but continue
              Alert.alert('Warning', 'Some media could not be saved to gallery.');
            }
         } else {
-            // If it's already saved but this is a NEW entry, ensure DB link
             if (!entry) shouldInsertToDB = true; 
         }
 
@@ -421,7 +415,7 @@ export const JournalEntryForm = ({ visible, entry, onClose, onSave, templateData
       mediaTypes: mediaType === 'image' 
         ? ImagePicker.MediaTypeOptions.Images 
         : ImagePicker.MediaTypeOptions.Videos,
-      allowsEditing: true, // CHANGED: Disabling native editing to prevent Android crash
+      allowsEditing: true, // Enabled editing
       quality: 0.7,
     });
     if (!result.canceled) {
@@ -609,7 +603,12 @@ export const JournalEntryForm = ({ visible, entry, onClose, onSave, templateData
   );
 
   const renderStepJournal = () => (
-    <View style={{ flex: 1 }}>
+    // CHANGED: Wrapped in KeyboardAvoidingView to push content up
+    <KeyboardAvoidingView 
+      style={{ flex: 1 }} 
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0} // Adjust offset to account for header
+    >
       <ScrollView 
         style={styles.scrollContent} 
         contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 20, paddingBottom: 100 }}
@@ -656,10 +655,6 @@ export const JournalEntryForm = ({ visible, entry, onClose, onSave, templateData
       </ScrollView>
 
       {!isReaderMode && (
-        <KeyboardAvoidingView 
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
-        >
           <View style={styles.minimalToolbar}>
             <TouchableOpacity style={styles.toolbarButton} onPress={() => handlePickMedia('image')}>
               <Text style={styles.toolbarButtonText}>Image</Text>
@@ -679,9 +674,9 @@ export const JournalEntryForm = ({ visible, entry, onClose, onSave, templateData
               </Text>
             </TouchableOpacity>
           </View>
-        </KeyboardAvoidingView>
       )}
 
+      {/* Mini Audio Player Overlay */}
       {audioPlayerVisible && (
           <View style={styles.miniPlayerContainer}>
               <View style={styles.miniPlayerContent}>
@@ -695,7 +690,7 @@ export const JournalEntryForm = ({ visible, entry, onClose, onSave, templateData
               </View>
           </View>
       )}
-    </View>
+    </KeyboardAvoidingView>
   );
 
   const steps = [renderStepWhen, renderStepWhere, renderStepWhoWhat, renderStepJournal];
@@ -760,6 +755,7 @@ export const JournalEntryForm = ({ visible, entry, onClose, onSave, templateData
           </KeyboardAvoidingView>
         )}
 
+        {/* Full Screen Media Modal */}
         <Modal visible={!!previewMedia} transparent={true} animationType="fade" onRequestClose={() => setPreviewMedia(null)}>
             <View style={styles.fullScreenMediaContainer}>
                 <TouchableOpacity style={styles.fullScreenCloseButton} onPress={() => setPreviewMedia(null)}>
