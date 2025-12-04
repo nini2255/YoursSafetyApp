@@ -18,11 +18,12 @@ import {
   Linking
 } from 'react-native';
 import { useJournal } from '../context/JournalContext';
-import { useEmergencyContacts } from '../context/EmergencyContactsContext'; // Import Emergency Contacts
+import { useEmergencyContacts } from '../context/EmergencyContactsContext';
 import { PageHeader } from '../components/PageHeader';
 import { JournalTemplateModal } from '../components/JournalTemplateModal';
 import { JournalEntryForm } from '../components/JournalEntryForm';
 import { IncidentReportForm } from '../components/IncidentReportForm';
+import { QuickNoteForm } from '../components/QuickNoteForm'; // Import the new QuickNoteForm
 import { JournalIcon, EditIcon, DeleteIcon } from '../components/Icons';
 import { Video, Audio } from 'expo-av';
 
@@ -184,7 +185,6 @@ const MaximizeIcon = () => (
 
 const ShareIcon = () => (
     <View style={{width: 24, height: 24, justifyContent: 'center', alignItems: 'center'}}>
-        {/* Simple Share Icon Representation */}
         <Text style={{fontSize: 18, color: '#4B5563', marginTop: -2}}>📤</Text>
     </View>
 );
@@ -202,7 +202,7 @@ const getMoodEmoji = (moodKey) => {
 
 export const JournalPage = ({ navigation }) => {
   const { entries, isLoading, addEntry, updateEntry, deleteEntry } = useJournal();
-  const { contacts: emergencyContacts } = useEmergencyContacts(); // Get contacts
+  const { contacts: emergencyContacts } = useEmergencyContacts();
   
   // UI State
   const [searchQuery, setSearchQuery] = useState('');
@@ -213,6 +213,9 @@ export const JournalPage = ({ navigation }) => {
   const [formVisible, setFormVisible] = useState(false);
   const [incidentFormVisible, setIncidentFormVisible] = useState(false);
   const [templateModalVisible, setTemplateModalVisible] = useState(false);
+  const [quickNoteFormVisible, setQuickNoteFormVisible] = useState(false);
+  const [creationMenuVisible, setCreationMenuVisible] = useState(false);
+
   const [editingEntry, setEditingEntry] = useState(null);
   const [templateData, setTemplateData] = useState(null);
   
@@ -233,11 +236,13 @@ export const JournalPage = ({ navigation }) => {
     };
   }, []);
 
-  // Filter entries based on search
+  // Filter entries based on search and exclude Quick Notes
   const filteredEntries = useMemo(() => {
-      if (!searchQuery.trim()) return entries;
+      const journalEntries = entries.filter(e => e.type !== 'quick_note');
+
+      if (!searchQuery.trim()) return journalEntries;
       const lowerQuery = searchQuery.toLowerCase();
-      return entries.filter(e => 
+      return journalEntries.filter(e => 
         (e.title && e.title.toLowerCase().includes(lowerQuery)) ||
         (e.notes && e.notes.toLowerCase().includes(lowerQuery)) ||
         (e.location && e.location.toLowerCase().includes(lowerQuery))
@@ -273,6 +278,31 @@ export const JournalPage = ({ navigation }) => {
             ? prev.filter(t => t !== sectionTitle)
             : [...prev, sectionTitle]
       );
+  };
+
+  // --- Creation & Navigation Logic ---
+
+  const handleFabPress = () => {
+    setCreationMenuVisible(true);
+  };
+
+  const handleCreateJournal = () => {
+    setCreationMenuVisible(false);
+    handleAddEntry(); // Reuse existing logic for journal creation
+  };
+
+  const handleCreateQuickNote = () => {
+    setCreationMenuVisible(false);
+    setEditingEntry(null);
+    setQuickNoteFormVisible(true);
+  };
+
+  const handleAddEntry = () => {
+    setEditingEntry(null);
+    setTemplateData(null);
+    setInitialFormStep(0);
+    setInitialFormMode('edit'); 
+    setTemplateModalVisible(true);
   };
 
   // --- Sharing Logic ---
@@ -321,15 +351,7 @@ export const JournalPage = ({ navigation }) => {
       }
   };
 
-  // --- End Sharing Logic ---
-
-  const handleAddEntry = () => {
-    setEditingEntry(null);
-    setTemplateData(null);
-    setInitialFormStep(0);
-    setInitialFormMode('edit'); 
-    setTemplateModalVisible(true);
-  };
+  // --- Template & Edit Logic ---
 
   const handleSelectTemplate = (templateType, customData = {}) => {
     setTemplateModalVisible(false);
@@ -418,13 +440,16 @@ export const JournalPage = ({ navigation }) => {
       if (editingEntry) {
         await updateEntry(editingEntry.id, entryData);
       } else {
-        await addEntry(entryData);
+        // Ensure regular journal entries have the correct type
+        const newEntry = { ...entryData, type: entryData.type || 'journal' };
+        await addEntry(newEntry);
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to save the journal entry.');
+      Alert.alert('Error', 'Failed to save the entry.');
     } finally {
         setFormVisible(false);
         setIncidentFormVisible(false);
+        setQuickNoteFormVisible(false);
     }
   };
 
@@ -627,7 +652,7 @@ export const JournalPage = ({ navigation }) => {
 
       {isCalendarVisible && (
           <JournalCalendar 
-            entries={entries} 
+            entries={filteredEntries} 
             onSelectDate={(date) => {
                 const dateStr = date.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
                 setSearchQuery(dateStr); 
@@ -636,7 +661,7 @@ export const JournalPage = ({ navigation }) => {
       )}
 
       <View style={styles.journalContainer}>
-        {entries.length === 0 ? (
+        {filteredEntries.length === 0 ? (
           <View style={styles.emptyState}>
             <JournalIcon color="#D1D5DB" />
             <Text style={styles.emptyStateText}>Your journal is empty</Text>
@@ -665,9 +690,25 @@ export const JournalPage = ({ navigation }) => {
         )}
       </View>
 
-      <TouchableOpacity style={styles.floatingActionButton} onPress={handleAddEntry}>
+      {/* FAB - triggers menu */}
+      <TouchableOpacity style={styles.floatingActionButton} onPress={handleFabPress}>
         <Text style={styles.fabText}>+</Text>
       </TouchableOpacity>
+
+      {/* Creation Menu Modal */}
+      <Modal visible={creationMenuVisible} transparent={true} animationType="fade" onRequestClose={() => setCreationMenuVisible(false)}>
+        <TouchableOpacity style={styles.menuOverlay} activeOpacity={1} onPress={() => setCreationMenuVisible(false)}>
+            <View style={styles.menuContainer}>
+                <TouchableOpacity style={styles.menuItem} onPress={handleCreateQuickNote}>
+                    <Text style={styles.menuItemText}>📝 Quick Note</Text>
+                </TouchableOpacity>
+                <View style={styles.menuSeparator} />
+                <TouchableOpacity style={styles.menuItem} onPress={handleCreateJournal}>
+                    <Text style={styles.menuItemText}>📖 Journal Entry</Text>
+                </TouchableOpacity>
+            </View>
+        </TouchableOpacity>
+      </Modal>
 
       {/* --- Share Modal --- */}
       <Modal visible={shareModalVisible} transparent={true} animationType="slide" onRequestClose={() => setShareModalVisible(false)}>
@@ -703,6 +744,7 @@ export const JournalPage = ({ navigation }) => {
           </View>
       </Modal>
 
+      {/* Forms */}
       <JournalTemplateModal
         visible={templateModalVisible}
         onClose={() => setTemplateModalVisible(false)}
@@ -723,6 +765,13 @@ export const JournalPage = ({ navigation }) => {
         visible={incidentFormVisible}
         entry={editingEntry}
         onClose={() => setIncidentFormVisible(false)}
+        onSave={handleSaveEntry}
+      />
+
+      <QuickNoteForm
+        visible={quickNoteFormVisible}
+        entry={editingEntry}
+        onClose={() => setQuickNoteFormVisible(false)}
         onSave={handleSaveEntry}
       />
     </View>
@@ -938,12 +987,48 @@ const styles = StyleSheet.create({
       textTransform: 'capitalize',
     },
     
-    // Share Modal Styles
+    // Modal Overlay General
     modalOverlay: {
         flex: 1,
         backgroundColor: 'rgba(0,0,0,0.5)',
         justifyContent: 'flex-end',
     },
+
+    // Creation Menu Styles
+    menuOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.3)',
+        justifyContent: 'flex-end',
+        alignItems: 'flex-end',
+    },
+    menuContainer: {
+        backgroundColor: 'white',
+        borderRadius: 12,
+        marginBottom: 90, // Position above FAB
+        marginRight: 20,
+        paddingVertical: 5,
+        elevation: 5,
+        shadowColor: '#000',
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        shadowOffset: { width: 0, height: 2 },
+        width: 180,
+    },
+    menuItem: {
+        paddingVertical: 12,
+        paddingHorizontal: 16,
+    },
+    menuItemText: {
+        fontSize: 16,
+        color: '#374151',
+        fontWeight: '500',
+    },
+    menuSeparator: {
+        height: 1,
+        backgroundColor: '#F3F4F6',
+    },
+
+    // Share Modal Styles
     shareModalContent: {
         backgroundColor: 'white',
         borderTopLeftRadius: 20,

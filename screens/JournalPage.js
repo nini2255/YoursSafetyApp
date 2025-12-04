@@ -2,10 +2,10 @@ import React from 'react';
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-// FIX: Use curly braces {} to import the named export 'JournalPage' 
-// and rename it to 'JournalEntriesPage' for clarity in this file.
+// Named import for the existing journal entries page
 import { JournalPage as JournalEntriesPage } from './JournalEntriesPage'; 
 import GalleryPage from './GalleryPage'; 
+import { QuickNotesPage } from './QuickNotesPage'; // Import new page
 
 const Tab = createMaterialTopTabNavigator();
 
@@ -25,6 +25,11 @@ const JournalPageController = () => {
             name="Entries" 
             component={JournalEntriesPage} 
             options={{ tabBarLabel: 'Journal' }}
+        />
+        <Tab.Screen 
+            name="QuickNotes" 
+            component={QuickNotesPage} 
+            options={{ tabBarLabel: 'Quick Notes' }}
         />
         <Tab.Screen 
             name="Gallery" 
