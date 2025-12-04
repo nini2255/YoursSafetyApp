@@ -27,6 +27,9 @@ import { AutofillProvider } from './context/AutofillContext';
 
 import { JournalIcon, AlertIcon, TimerIcon, SettingsIcon, RecordIcon } from './components/Icons';
 
+// --- NEW IMPORT FOR GALLERY DATABASE ---
+import { initDB } from './utils/db';
+
 // Login/Signup Screens
 import LoginScreen from './screens/LoginScreen';
 import SignupScreen from './screens/SignupScreen';
@@ -34,7 +37,7 @@ import SignupScreen from './screens/SignupScreen';
 // Core App Screens
 import { HomePage } from './screens/HomePage';
 import SecondaryHomeScreen from './screens/SecondaryHomeScreen';
-import { JournalPage } from './screens/JournalPage';
+import JournalPage from './screens/JournalPage'; // Updated to point to the new Tab Navigator
 import { RecordingPage } from './screens/AudioRecording/RecordingPage';
 import { SavedRecords } from './screens/AudioRecording/SavedRecords';
 import { PanicPage } from './screens/PanicPage';
@@ -112,7 +115,14 @@ function AppContent() {
     volumeHoldDuration,
   });
 
-  // --- Initialize geofencing and push notifications (MODIFIED) ---
+  // --- Initialize Database for Gallery ---
+  useEffect(() => {
+    initDB()
+      .then(() => console.log('Gallery Database initialized successfully'))
+      .catch(err => console.error('Failed to initialize Gallery Database', err));
+  }, []);
+
+  // --- Initialize geofencing and push notifications ---
   useEffect(() => {
     const initializeServices = async () => {
       // 1. Ensure user is logged in before trying to save token to database
@@ -121,7 +131,7 @@ function AppContent() {
       try {
         const token = await registerForPushNotifications();
         if (token) {
-          // 2. Use the REAL Firebase User ID, not a random one
+          // 2. Use the REAL Firebase User ID
           await saveUserToken(user.uid, token);
           console.log('Push token saved for user:', user.uid);
         }
@@ -136,7 +146,7 @@ function AppContent() {
     };
     
     initializeServices();
-  }, [user]); // Add 'user' to dependency array
+  }, [user]); 
 
   useEffect(() => {
     settingsRef.current = {
@@ -146,7 +156,7 @@ function AppContent() {
     };
   }, [isFakeCallActive, volumeHoldEnabled, volumeHoldDuration]);
 
-  // --- IMPROVED NOTIFICATION LISTENER SETUP ---
+  // --- NOTIFICATION LISTENER SETUP ---
   useEffect(() => {
     registerSafetyNotificationActions();
 

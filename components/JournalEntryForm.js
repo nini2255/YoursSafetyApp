@@ -20,8 +20,11 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { Audio, Video } from 'expo-av';
-import * as FileSystem from 'expo-file-system/legacy';
 import { MoodSelection } from './MoodSelection'; 
+
+// --- IMPORTS FOR GALLERY FEATURE ---
+import { saveFileToGallery } from '../utils/fileSystem';
+import { insertMedia } from '../utils/db';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
@@ -31,7 +34,7 @@ const predefinedActivityTags = [
   'gaming', 'reading', 'cleaning', 'sleep early', 'eat healthy', 'shopping'
 ];
 
-// --- Custom Calendar Component (Unchanged) ---
+// --- Custom Calendar Component ---
 const CustomCalendar = ({ selectedDate, onSelectDate }) => {
   const [currentMonth, setCurrentMonth] = useState(new Date(selectedDate || Date.now()));
   const [viewMode, setViewMode] = useState('day'); 
@@ -213,6 +216,7 @@ const CustomCalendar = ({ selectedDate, onSelectDate }) => {
 export const JournalEntryForm = ({ visible, entry, onClose, onSave, templateData, initialStep = 0, initialMode = 'edit' }) => {
   const [currentStep, setCurrentStep] = useState(0);
   const [isReaderMode, setIsReaderMode] = useState(initialMode === 'read');
+  const [isSaving, setIsSaving] = useState(false);
 
   const [date, setDate] = useState(new Date());
   const [title, setTitle] = useState('');
@@ -220,15 +224,11 @@ export const JournalEntryForm = ({ visible, entry, onClose, onSave, templateData
   const [attachments, setAttachments] = useState([]);
   const [recording, setRecording] = useState();
 
-  // Media Preview States
-  const [previewMedia, setPreviewMedia] = useState(null); // { type, uri }
-  
-  // Audio Player States
+  const [previewMedia, setPreviewMedia] = useState(null); 
   const [audioPlayerVisible, setAudioPlayerVisible] = useState(false);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const [currentAudioUri, setCurrentAudioUri] = useState(null);
 
-  // Tags
   const [selectedMood, setSelectedMood] = useState(null);
   const [location, setLocation] = useState('');
   const [selectedActivityTags, setSelectedActivityTags] = useState([]);
@@ -236,7 +236,6 @@ export const JournalEntryForm = ({ visible, entry, onClose, onSave, templateData
 
   const soundRef = useRef(new Audio.Sound());
 
-  // Handle Hardware Back Button
   useEffect(() => {
     const backAction = () => {
       if (previewMedia) {
@@ -244,20 +243,13 @@ export const JournalEntryForm = ({ visible, entry, onClose, onSave, templateData
         return true;
       }
       if (visible) {
-        if (audioPlayerVisible) {
-            closeAudioPlayer(); // Optional: close player on back
-        }
+        if (audioPlayerVisible) closeAudioPlayer(); 
         onClose();
         return true;
       }
       return false;
     };
-
-    const backHandler = BackHandler.addEventListener(
-      'hardwareBackPress',
-      backAction
-    );
-
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
     return () => backHandler.remove();
   }, [visible, onClose, previewMedia, audioPlayerVisible]);
 
@@ -267,6 +259,7 @@ export const JournalEntryForm = ({ visible, entry, onClose, onSave, templateData
       setIsReaderMode(initialMode === 'read');
       setPreviewMedia(null);
       setAudioPlayerVisible(false);
+      setIsSaving(false);
 
       if (entry) {
         setDate(entry.date ? new Date(entry.date) : new Date());
@@ -303,28 +296,75 @@ export const JournalEntryForm = ({ visible, entry, onClose, onSave, templateData
     };
   }, []);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!title.trim()) {
       Alert.alert('Title Required', 'Please provide a title for your entry.');
       return;
     }
-    onSave({ 
-      date: date.toISOString(),
-      title: title.trim(), 
-      notes: notes.trim(), 
-      attachments,
-      mood: selectedMood,
-      location: location.trim(),
-      activityTags: selectedActivityTags,
-    });
-    onClose(); 
+
+    setIsSaving(true);
+
+    try {
+      const processedAttachments = [];
+      
+      for (const att of attachments) {
+        let persistentUri = att.uri;
+        let shouldInsertToDB = false;
+
+        // Check if it's already in our gallery folder (persistent)
+        const alreadySaved = att.uri.includes('gallery/');
+
+        if (!alreadySaved) {
+           try {
+             // Move to persistent storage
+             persistentUri = await saveFileToGallery(att.uri, att.type);
+             shouldInsertToDB = true;
+           } catch (error) {
+             console.error("Failed to save media locally:", error);
+             // If save fails, warn but continue
+             Alert.alert('Warning', 'Some media could not be saved to gallery.');
+           }
+        } else {
+            // If it's already saved but this is a NEW entry, ensure DB link
+            if (!entry) shouldInsertToDB = true; 
+        }
+
+        if (shouldInsertToDB) {
+            // Pass date.toISOString() to ensure it appears on the correct date in the gallery
+            await insertMedia(persistentUri, att.type, entry ? entry.id : null, title, date.toISOString());
+        }
+
+        processedAttachments.push({ 
+          uri: persistentUri, 
+          type: att.type 
+        });
+      }
+
+      setAttachments(processedAttachments);
+
+      await onSave({ 
+        date: date.toISOString(),
+        title: title.trim(), 
+        notes: notes.trim(), 
+        attachments: processedAttachments, 
+        mood: selectedMood,
+        location: location.trim(),
+        activityTags: selectedActivityTags,
+      });
+      
+      onClose(); 
+
+    } catch (error) {
+      console.error("Error saving entry:", error);
+      Alert.alert('Error', 'Failed to save entry completely. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   // --- Media Logic ---
-  
   const handleAttachmentPress = (att) => {
-    if (!isReaderMode) return; // Only preview in reader mode (or you can allow in edit too)
-
+    if (!isReaderMode) return; 
     if (att.type === 'image' || att.type === 'video') {
         setPreviewMedia(att);
     } else if (att.type === 'audio') {
@@ -342,7 +382,6 @@ export const JournalEntryForm = ({ visible, entry, onClose, onSave, templateData
           setAudioPlayerVisible(true);
           await soundRef.current.playAsync();
           setIsPlayingAudio(true);
-          
           soundRef.current.setOnPlaybackStatusUpdate((status) => {
               if (status.didJustFinish) {
                   setIsPlayingAudio(false);
@@ -382,11 +421,11 @@ export const JournalEntryForm = ({ visible, entry, onClose, onSave, templateData
       mediaTypes: mediaType === 'image' 
         ? ImagePicker.MediaTypeOptions.Images 
         : ImagePicker.MediaTypeOptions.Videos,
-      allowsEditing: true,
+      allowsEditing: true, // CHANGED: Disabling native editing to prevent Android crash
       quality: 0.7,
     });
     if (!result.canceled) {
-      saveAttachment(result.assets[0].uri, mediaType);
+      setAttachments(prev => [...prev, { uri: result.assets[0].uri, type: mediaType }]);
     }
   };
 
@@ -396,28 +435,14 @@ export const JournalEntryForm = ({ visible, entry, onClose, onSave, templateData
         type: 'audio/*',
         copyToCacheDirectory: true,
       });
-
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        saveAttachment(result.assets[0].uri, 'audio');
+        setAttachments(prev => [...prev, { uri: result.assets[0].uri, type: 'audio' }]);
       }
     } catch (err) {
       console.error("Error picking audio:", err);
       Alert.alert("Error", "Failed to select audio file.");
     }
   };
-
-  const saveAttachment = async (uri, type) => {
-    try {
-      const fileType = uri.split('.').pop();
-      const newName = `${Date.now()}.${fileType}`;
-      const newPath = FileSystem.documentDirectory + newName;
-      await FileSystem.copyAsync({ from: uri, to: newPath });
-      setAttachments(prev => [...prev, { uri: newPath, type }]);
-    } catch (err) {
-      console.error("Error copying file:", err);
-      Alert.alert("Error", "Failed to save attachment.");
-    }
-  }
 
   const startRecording = async () => {
     try {
@@ -439,16 +464,12 @@ export const JournalEntryForm = ({ visible, entry, onClose, onSave, templateData
     await recording.stopAndUnloadAsync();
     try {
       const tempUri = recording.getURI(); 
-      const newName = `${Date.now()}_recording.m4a`;
-      const newPath = FileSystem.documentDirectory + newName;
-      await FileSystem.copyAsync({ from: tempUri, to: newPath });
-      setAttachments(prev => [...prev, { uri: newPath, type: 'audio' }]);
+      setAttachments(prev => [...prev, { uri: tempUri, type: 'audio' }]);
     } catch (err) {
       console.error("Error saving audio:", err);
     }
   };
 
-  // Simple play for edit mode (no mini player)
   const playSoundEditMode = async (uri) => {
     try {
       await Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true });
@@ -460,13 +481,8 @@ export const JournalEntryForm = ({ visible, entry, onClose, onSave, templateData
     }
   };
 
-  const removeAttachment = async (uri) => {
-    try {
-      await FileSystem.deleteAsync(uri, { idempotent: true });
-      setAttachments(prev => prev.filter(att => att.uri !== uri));
-    } catch (err) {
-      setAttachments(prev => prev.filter(att => prev.filter(att => att.uri !== uri)));
-    }
+  const removeAttachment = (uri) => {
+    setAttachments(prev => prev.filter(att => att.uri !== uri));
   };
 
   const renderAttachments = (readonly = false) => {
@@ -489,15 +505,11 @@ export const JournalEntryForm = ({ visible, entry, onClose, onSave, templateData
                 </View>
             )}
             {att.type === 'audio' && (
-                readonly ? (
-                    <View style={styles.audioPlaceholder}>
-                        <Text style={styles.audioPlaceholderText}>▶️ Tap to listen to Audio</Text>
-                    </View>
-                ) : (
-                    <TouchableOpacity style={styles.audioButton} onPress={() => playSoundEditMode(att.uri)}>
-                        <Text style={styles.audioButtonText}>Play Audio: {att.uri.split('/').pop()}</Text>
-                    </TouchableOpacity>
-                )
+                <View style={readonly ? styles.audioPlaceholder : styles.audioButton}>
+                    <Text style={readonly ? styles.audioPlaceholderText : styles.audioButtonText}>
+                        {readonly ? '▶️ Tap to listen' : 'Audio Recording'}
+                    </Text>
+                </View>
             )}
         </TouchableOpacity>
 
@@ -531,7 +543,6 @@ export const JournalEntryForm = ({ visible, entry, onClose, onSave, templateData
   };
 
   // --- Render Steps ---
-
   const renderStepWhen = () => (
     <View style={[styles.stepContainer, { flex: 1, paddingHorizontal: 20 }]}>
       <Text style={styles.stepTitle}>When did this happen?</Text>
@@ -671,7 +682,6 @@ export const JournalEntryForm = ({ visible, entry, onClose, onSave, templateData
         </KeyboardAvoidingView>
       )}
 
-      {/* Mini Audio Player Overlay */}
       {audioPlayerVisible && (
           <View style={styles.miniPlayerContainer}>
               <View style={styles.miniPlayerContent}>
@@ -710,6 +720,8 @@ export const JournalEntryForm = ({ visible, entry, onClose, onSave, templateData
                 <TouchableOpacity onPress={() => setIsReaderMode(false)}>
                    <Text style={[styles.headerButtonText, {color: '#F472B6', fontWeight: '600'}]}>Edit</Text>
                 </TouchableOpacity>
+              ) : isSaving ? (
+                <ActivityIndicator size="small" color="#10B981" />
               ) : (
                 <TouchableOpacity onPress={handleSave}>
                    <Text style={[styles.headerButtonText, {color: '#10B981', fontWeight: 'bold'}]}>Save</Text>
@@ -748,7 +760,6 @@ export const JournalEntryForm = ({ visible, entry, onClose, onSave, templateData
           </KeyboardAvoidingView>
         )}
 
-        {/* Full Screen Media Modal */}
         <Modal visible={!!previewMedia} transparent={true} animationType="fade" onRequestClose={() => setPreviewMedia(null)}>
             <View style={styles.fullScreenMediaContainer}>
                 <TouchableOpacity style={styles.fullScreenCloseButton} onPress={() => setPreviewMedia(null)}>
@@ -811,7 +822,6 @@ const styles = StyleSheet.create({
       marginBottom: 8,
       textAlign: 'center',
     },
-    // --- Clean Minimal Styles for Writing ---
     minimalDateText: {
       fontSize: 13,
       color: '#9CA3AF',
@@ -875,7 +885,6 @@ const styles = StyleSheet.create({
       fontWeight: '600',
       color: '#4B5563',
     },
-    // Attachment Styles
     attachmentList: {
         marginBottom: 16,
     },
@@ -941,8 +950,6 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
         fontSize: 16,
     },
-    
-    // Mini Player
     miniPlayerContainer: {
         position: 'absolute',
         bottom: 20,
@@ -982,8 +989,6 @@ const styles = StyleSheet.create({
         color: '#9CA3AF',
         fontSize: 12,
     },
-
-    // Full Screen Media
     fullScreenMediaContainer: {
         flex: 1,
         backgroundColor: 'black',
@@ -1010,8 +1015,6 @@ const styles = StyleSheet.create({
         width: '100%',
         height: '100%',
     },
-
-    // Form Action Buttons (Previous steps)
     formActions: {
       flexDirection: 'row',
       justifyContent: 'space-between',
@@ -1063,7 +1066,6 @@ const styles = StyleSheet.create({
       backgroundColor: '#F9FAFB',
       marginTop: 10,
     },
-    // Calendar styles reused from previous
     calendarContainer: {
       backgroundColor: '#fff',
       borderRadius: 12,
@@ -1265,3 +1267,5 @@ const styles = StyleSheet.create({
       marginTop: -2,
     },
 });
+
+export default JournalEntryForm;
