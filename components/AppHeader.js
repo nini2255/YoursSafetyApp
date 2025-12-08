@@ -7,7 +7,7 @@ export const AppHeader = ({ onMenuPress, title }) => (
   <SafeAreaView
     edges={['top']}
     style={styles.appHeader}>
-    <TouchableOpacity onPress={onMenuPress} style={styles.headerButton}>
+    <TouchableOpacity onPress={onMenuPress}>
       <MenuIcon />
     </TouchableOpacity>
     <Text style={styles.headerTitle}>{title}</Text>
@@ -22,16 +22,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#FFE4E6',
     backgroundColor: '#FEF2F2',
-    ...Platform.select({
-      ios: {
-        paddingBottom: 8,
-        paddingHorizontal: 16,
-      },
-      default: {
-        padding: 16,
-        justifyContent: 'space-between',
-      }
-    })    
+    padding: 16,
   },
   headerTitle: {
     flex: 1,
@@ -40,9 +31,6 @@ const styles = StyleSheet.create({
     color: '#1F2937',
     textAlign: 'center',
   },
-  /* headerButton: {
-    padding: 8,
-  }, */
   headerSpacer: {
     width: 40,
   },

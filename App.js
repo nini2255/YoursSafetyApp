@@ -496,7 +496,7 @@ function AppContent() {
                 <Stack.Screen name="TrackAFriend" component={TrackAFriendPage} />
                 <Stack.Screen name="TrackingDetail" component={TrackingDetailPage} />
                 <Stack.Screen name="LocationHistory" component={LocationHistoryPage} />
-                  <Stack.Screen name="GeofenceManagement" component={GeofenceManagementPage} />
+                <Stack.Screen name="GeofenceManagement" component={GeofenceManagementPage} />
 
                 <Stack.Screen name="CreateGeofence" component={CreateGeofencePage} />
               </>

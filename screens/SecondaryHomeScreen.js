@@ -61,7 +61,8 @@ const SecondaryHomeScreen = ({ navigation }) => {
         merge: true,
       });
     } else {
-      navigation.navigate(feature.route);
+      navigation.pop();
+      navigation.push(feature.route);
     }
   };
 
