@@ -3,18 +3,18 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   StyleSheet,
   View,
-  SafeAreaView,
   StatusBar,
   TouchableOpacity,
   Text,
   Alert,
+  Platform
 } from 'react-native';
 import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { VolumeManager } from 'react-native-volume-manager';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppHeader } from './components/AppHeader';
 import { SideMenu } from './components/SideMenu';
 
@@ -368,6 +368,8 @@ function AppContent() {
   }
 
   return (
+    <SafeAreaView edge = {['bottom']}
+    style={styles.bottomSafeArea}>
     <GestureHandlerRootView style={{ flex: 1 }}>
       <NavigationContainer ref={navigationRef}>
         <View
@@ -384,7 +386,8 @@ function AppContent() {
               <>
                 <Stack.Screen name="Home">
                   {props => (
-                    <SafeAreaView style={styles.container}>
+                    <View 
+                    style={styles.container}>
                       <StatusBar barStyle="dark-content" backgroundColor="#FEF2F2" />
                       {!isFakeCallActive && !showSudoku && (
                         <AppHeader onMenuPress={() => setMenuOpen(true)} title="Yours" />
@@ -446,7 +449,7 @@ function AppContent() {
                           props.navigation.navigate(page);
                         }}
                       />
-                    </SafeAreaView>
+                    </View>
                   )}
                 </Stack.Screen>
 
@@ -512,6 +515,7 @@ function AppContent() {
                 <Stack.Screen name="TrackingDetail" component={TrackingDetailPage} />
                 <Stack.Screen name="LocationHistory" component={LocationHistoryPage} />
                 <Stack.Screen name="GeofenceManagement" component={GeofenceManagementPage} />
+
                 <Stack.Screen name="CreateGeofence" component={CreateGeofencePage} />
 
               </>
@@ -525,6 +529,7 @@ function AppContent() {
         </View>
       </NavigationContainer>
     </GestureHandlerRootView>
+    </SafeAreaView>
   );
 }
 
@@ -544,11 +549,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   bottomNav: {
-    height: 80,
+    height: Platform.OS === 'ios' ? '10%' : 80,
     flexDirection: 'row',
     borderTopWidth: 1,
     borderTopColor: '#FFE4E6',
     backgroundColor: 'white',
+    paddingBottom: '5%'
   },
   navButton: {
     flex: 1,
@@ -560,4 +566,8 @@ const styles = StyleSheet.create({
     color: '#4B5563',
     marginTop: 4,
   },
+  bottomSafeArea: {
+    backgroundColor: 'white',
+    flex: 1,
+  }
 });

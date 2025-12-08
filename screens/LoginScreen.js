@@ -7,11 +7,11 @@ import {
   StyleSheet, 
   Alert,
   Image,
-  SafeAreaView,
   ScrollView, // For scrollable content
   KeyboardAvoidingView, // For keyboard handling
   Platform // To check OS for KeyboardAvoidingView
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context'
 import { LockIcon, MailIcon } from '../components/Icons'; // Assuming icons are in ../components/Icons.js
 import { useAuth } from '../context/AuthContext'; // Import useAuth
 
@@ -26,18 +26,18 @@ export default function LoginScreen({ navigation }) {
       Alert.alert('Validation', 'Please enter both email and password.');
       return;
     }
-    
+
     setIsLoading(true); // Set loading true
-    
+
     try {
       // --- MODIFIED: Use auth.login ---
       // We pass the email (trimmed) and password to the context
       await auth.login(email.trim(), password);
-      
+
       // navigation.replace('Home') is no longer needed here.
       // App.js listens to the `isLoggedIn` state from AuthContext
       // and will automatically navigate to the 'Home' screen.
-      
+
     } catch (error) {
       console.error('Login error:', error);
       // Display the error message thrown from AuthContext
@@ -48,90 +48,92 @@ export default function LoginScreen({ navigation }) {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.topShape}></View>
+    <View style={{ flex: 1, backgroundColor: '#FFF8F8' }}>
+      <View style={styles.topShape}>
+        <Image
+          source={require('../assets/logo_version1.png')}
+          style={styles.illustration}
+          resizeMode="contain"
+        />
+      </View>
+      <SafeAreaView style={styles.safeArea}>
 
-      {/* --- ADDED KeyboardAvoidingView Wrapper --- */}
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.container}
-          keyboardShouldPersistTaps="handled" // Good for dismissing keyboard on tap
+        {/* --- ADDED KeyboardAvoidingView Wrapper --- */}
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
-          <Image
-            source={require('../assets/logo_version1.png')}
-            style={styles.illustration}
-            resizeMode="contain"
-          />
-          <Text style={styles.welcomeTitle}>Welcome back!</Text>
-          <Text style={styles.welcomeSubtitle}>Log in to your existing account of YoursApp</Text>
-
-          <View style={styles.inputGroup}>
-            <MailIcon style={styles.inputIcon} color="#9CA3AF" />
-            <TextInput
-              style={styles.input}
-              placeholder="Username"
-              placeholderTextColor="#9CA3AF"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-          </View>
-          <View style={styles.inputGroup}>
-            <LockIcon style={styles.inputIcon} color="#9CA3AF" />
-            <TextInput
-              style={styles.input}
-              placeholder="Password"
-              placeholderTextColor="#9CA3AF"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-            />
-          </View>
-
-          <TouchableOpacity style={styles.forgotPasswordButton} onPress={() => Alert.alert('Forgot Password', 'Feature to be implemented.')}>
-            <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
-          </TouchableOpacity>
-
-          {/* --- MODIFIED: Button shows loading state --- */}
-          <TouchableOpacity
-            style={[styles.loginButton, isLoading && styles.buttonDisabled]}
-            onPress={handleLogin}
-            disabled={isLoading}
+          <ScrollView
+            style={styles.scrollView}
+            contentContainerStyle={styles.container}
+            keyboardShouldPersistTaps="handled" // Good for dismissing keyboard on tap
           >
-            <Text style={styles.loginButtonText}>
-              {isLoading ? 'LOGGING IN...' : 'LOG IN'}
-            </Text>
-          </TouchableOpacity>
+            <Text style={styles.welcomeTitle}>Welcome back!</Text>
+            <Text style={styles.welcomeSubtitle}>Log in to your existing account of YoursApp</Text>
 
-          <Text style={styles.orConnectText}>Or connect using</Text>
+            <View style={styles.inputGroup}>
+              <MailIcon style={styles.inputIcon} color="#9CA3AF" />
+              <TextInput
+                style={styles.input}
+                placeholder="Username"
+                placeholderTextColor="#9CA3AF"
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+            </View>
+            <View style={styles.inputGroup}>
+              <LockIcon style={styles.inputIcon} color="#9CA3AF" />
+              <TextInput
+                style={styles.input}
+                placeholder="Password"
+                placeholderTextColor="#9CA3AF"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+              />
+            </View>
 
-          <View style={styles.socialButtonsContainer}>
-            <TouchableOpacity style={styles.socialButton}>
-              {/* <Image source={require('../assets/facebook-icon.png')} style={styles.socialIcon} /> */}
-              <Text style={styles.socialButtonText}>Facebook</Text>
+            <TouchableOpacity style={styles.forgotPasswordButton} onPress={() => Alert.alert('Forgot Password', 'Feature to be implemented.')}>
+              <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.socialButton, styles.googleButton]}>
-              {/* <Image source={require('../assets/google-icon.png')} style={styles.socialIcon} /> */}
-              <Text style={styles.socialButtonText}>Google</Text>
-            </TouchableOpacity>
-          </View>
 
-          <View style={styles.signupPrompt}>
-            <Text style={styles.signupPromptText}>Don't have an account? </Text>
-            <TouchableOpacity onPress={() => navigation.navigate('Signup')}>
-              <Text style={styles.signupLink}>Sign Up</Text>
+            <TouchableOpacity
+              style={[styles.loginButton, isLoading && styles.buttonDisabled]}
+              onPress={handleLogin}
+              disabled={isLoading}
+            >
+              <Text style={styles.loginButtonText}>
+                {isLoading ? 'LOGGING IN...' : 'LOG IN'}
+              </Text>
             </TouchableOpacity>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-      {/* --- END KeyboardAvoidingView Wrapper --- */}
 
-    </SafeAreaView>
+            <Text style={styles.orConnectText}>Or connect using</Text>
+
+            <View style={styles.socialButtonsContainer}>
+              <TouchableOpacity style={styles.socialButton}>
+                {/* <Image source={require('../assets/facebook-icon.png')} style={styles.socialIcon} /> */}
+                <Text style={styles.socialButtonText}>Facebook</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.socialButton, styles.googleButton]}>
+                {/* <Image source={require('../assets/google-icon.png')} style={styles.socialIcon} /> */}
+                <Text style={styles.socialButtonText}>Google</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.signupPrompt}>
+              <Text style={styles.signupPromptText}>Don't have an account? </Text>
+              <TouchableOpacity onPress={() => navigation.navigate('Signup')}>
+                <Text style={styles.signupLink}>Sign Up</Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
+        {/* --- END KeyboardAvoidingView Wrapper --- */}
+
+      </SafeAreaView>
+    </View>
   );
 }
 
@@ -141,12 +143,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFF8F8',
   },
   topShape: {
-    position: 'absolute',
+    position: 'relative',
     top: 0,
     left: 0,
     right: 0,
     height: 280,
-    backgroundColor: '#ffdedeff', 
+    backgroundColor: '#ffdedeff',
     borderBottomLeftRadius: 50,
     borderBottomRightRadius: 50,
   },
@@ -154,14 +156,20 @@ const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
     paddingHorizontal: 30,
-    paddingTop: 100,
+    paddingTop: Platform.OS === 'ios' ? '15%' : 100,
     paddingBottom: 40,
-    alignItems: 'center',
+    ...Platform.select({
+      ios: {
+        alignItems: 'center',
+      }
+    })
   },
   illustration: {
     width: '90%',
-    height: 220,
+    marginTop: Platform.OS === 'ios' ? '20%' : 0,
+    height: 220, // Adjusted height
     marginBottom: 20,
+    alignSelf: 'center',
   },
   welcomeTitle: {
     fontSize: 26,
@@ -188,7 +196,7 @@ const styles = StyleSheet.create({
     marginBottom: Platform.OS === 'ios' ? 20 : 15,
     paddingHorizontal: 15,
     width: '100%',
-    elevation: 2, 
+    elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
@@ -208,10 +216,10 @@ const styles = StyleSheet.create({
   },
   forgotPasswordText: {
     fontSize: 14,
-    color: '#F87171', 
+    color: '#F87171',
   },
   loginButton: {
-    backgroundColor: '#F87171', 
+    backgroundColor: '#F87171',
     borderRadius: 25,
     height: 50,
     justifyContent: 'center',
@@ -247,7 +255,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#F87171',
     height: 50,
-    width: '48%', 
+    width: '48%',
   },
   googleButton: {
     // Specific styles for Google if needed
@@ -270,7 +278,7 @@ const styles = StyleSheet.create({
   },
   signupLink: {
     fontSize: 14,
-    color: '#F87171', 
+    color: '#F87171',
     fontWeight: 'bold',
   },
 });

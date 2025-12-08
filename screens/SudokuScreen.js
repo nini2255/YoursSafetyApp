@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TextInput, Alert, TouchableOpacity, SafeAreaView, Keyboard } from 'react-native';
+import { View, Text, StyleSheet, TextInput, Alert, TouchableOpacity, Keyboard } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../context/AuthContext';
 import { PageHeader } from '../components/PageHeader';
+import { SafeAreaView } from 'react-native-safe-area-context'
 
 // A valid solved Sudoku grid base
 const baseSolvedGrid = [

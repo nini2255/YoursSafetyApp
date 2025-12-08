@@ -66,9 +66,9 @@ export const SettingsPage = ({ navigation }) => {
         {/* --- NEW: Safety Banner Toggle Row --- */}
         <View style={styles.toggleContainer}>
             <Text style={styles.toggleLabel}>Active Safety Banner</Text>
-            <Switch
+            <Switch style={styles.toggleSwitch}
                 trackColor={{ false: "#E5E7EB", true: "#FEE2E2" }}
-                thumbColor={isBannerActive ? "#EF4444" : "#9CA3AF"}
+                thumbColor={isBannerActive ? "#EF4444" : Platform.OS === 'ios'? "#E5E7EB" : "#9CA3AF"}
                 ios_backgroundColor="#E5E7EB"
                 onValueChange={toggleSafetyBanner}
                 value={isBannerActive}
@@ -118,6 +118,9 @@ export const SettingsPage = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
+    toggleSwitch: {
+      
+    },
     fullPage: {
         flex: 1,
         backgroundColor: '#FFF8F8', 
@@ -141,10 +144,22 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         backgroundColor: 'white', 
     },
-    toggleContainer: {
+    /* toggleContainer: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
+        width: '100%',
+        padding: 15,
+        backgroundColor: 'white',
+        borderWidth: 1,
+        borderColor: '#FEE2E2',
+        borderRadius: 8,
+        marginBottom: 5,
+    }, */
+    toggleContainer: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: '',
         width: '100%',
         padding: 15,
         backgroundColor: 'white',
