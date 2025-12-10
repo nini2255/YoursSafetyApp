@@ -16,7 +16,7 @@ export default {
     },
     ios: {
       supportsTablet: true,
-      bundleIdentifier: "com.rafox2500.Yoursapp",
+      bundleIdentifier: "com.YoursSafetyApp.Yoursapp",
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
         // These strings are required by Apple for location access
@@ -31,7 +31,7 @@ export default {
         backgroundColor: "#ffffff"
       },
       edgeToEdgeEnabled: true,
-      package: "com.rafox2500.Yoursapp",
+      package: "com.YoursSafetyApp.Yoursapp",
       // 👇 CRITICAL: This permissions section fixes your specific error
       permissions: [
         "ACCESS_COARSE_LOCATION",
